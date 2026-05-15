@@ -7,6 +7,7 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import Gtk, WebKit, Gio, GObject  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
+from whatsapp_desk.url_handler import UrlHandler
 from whatsapp_desk.constants import WHATSAPP_URL
 
 
@@ -93,6 +94,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._webview.connect("load-changed", self._on_load_changed)
         self._webview.connect("notify::title", self._on_title_changed)
         self._webview.connect("web-process-terminated", self._on_web_process_terminated)
+
+        # Manejar enlaces externos
+        self._url_handler = UrlHandler(self._webview)
 
         self._overlay.set_child(self._webview)
         self.set_child(self._overlay)
