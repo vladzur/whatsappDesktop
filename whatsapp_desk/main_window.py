@@ -107,6 +107,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # Notificaciones de escritorio
         self._notifications = NotificationManager(self._webview, self._config)
 
+        # Modo oscuro
+        self._dark_mode = DarkModeManager(self._webview, self._config)
+
         self._overlay.set_child(self._webview)
         self.set_child(self._overlay)
 
@@ -203,8 +206,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_toggle_dark_mode(self, button):
         """Alterna el modo oscuro."""
-        # Se implementará en Phase 5 (DarkModeManager)
-        pass
+        self._dark_mode.toggle()
 
     def _on_toggle_fullscreen(self, widget, shortcut):
         self.fullscreen()
