@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=WhatsApp Desk
+Comment=GNOME desktop application for WhatsApp Web
+Exec=whatsapp-desk %U
+Icon=whatsapp-desk
+Categories=Network;InstantMessaging;
+Keywords=WhatsApp;Chat;Messaging;IM;
+StartupNotify=true
+Terminal=false
