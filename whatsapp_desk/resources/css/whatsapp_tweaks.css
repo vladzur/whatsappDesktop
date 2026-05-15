@@ -1,0 +1,11 @@
+/* Ajustes visuales para WhatsApp Web dentro del WebView */
+
+/* Quitar scrollbars innecesarias en el contenedor principal */
+html, body {
+    overscroll-behavior: none;
+}
+
+/* Ajustar el panel de notificaciones para que no tape la UI */
+span[data-testid="bubble"] {
+    max-width: 85% !important;
+}
