@@ -6,11 +6,12 @@ TRAY_AVAILABLE = False
 
 try:
     gi.require_version("AyatanaAppIndicator3", "0.1")
+    # Verificar que la biblioteca carga correctamente
     from gi.repository import AyatanaAppIndicator3 as AppIndicator  # noqa: E402
-    from gi.repository import Gtk, Gio  # noqa: E402
+    from gi.repository import Gio  # noqa: E402
 
     TRAY_AVAILABLE = True
-except (ValueError, ImportError):
+except (ValueError, ImportError, RuntimeError):
     pass
 
 
@@ -18,7 +19,7 @@ class TrayIcon:
     """Icono en la bandeja del sistema con menú contextual.
 
     Permite ocultar/mostrar la ventana y salir de la aplicación.
-    Si la librería AppIndicator no está disponible, se desactiva
+    Si la biblioteca AppIndicator no está disponible, se desactiva
     silenciosamente.
     """
 
@@ -26,37 +27,39 @@ class TrayIcon:
         self._app = application
         self._window = window
         self._indicator = None
-        self._menu = None
 
-        if TRAY_AVAILABLE and not self._app.config.get("start_in_background"):
+        if TRAY_AVAILABLE:
             self._create_indicator()
 
     def _create_indicator(self):
         """Crea el indicador AppIndicator y su menú."""
-        self._menu = self._build_menu()
-        self._indicator = AppIndicator.Indicator.new(
-            "whatsapp-desk",
-            "whatsapp-desk-symbolic",
-            AppIndicator.IndicatorCategory.APPLICATION_STATUS,
-        )
-        self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-        self._indicator.set_menu(self._menu)
-        self._indicator.set_title("WhatsApp Desk")
+        try:
+            self._indicator = AppIndicator.Indicator.new(
+                "whatsapp-desk",
+                "whatsapp-desk-symbolic",
+                AppIndicator.IndicatorCategory.APPLICATION_STATUS,
+            )
+            self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+            self._indicator.set_title("WhatsApp Desk")
+
+            # Gio.Menu como modelo de menú (soportado por AppIndicator 0.5+)
+            menu = self._build_menu()
+            self._indicator.set_menu(menu)
+        except Exception:
+            self._indicator = None
 
     def _build_menu(self):
-        """Construye el menú del icono de bandeja."""
-        menu = Gtk.PopoverMenu()
-        gmenu = Gio.Menu()
+        """Construye el menú Gio.Menu para el icono de bandeja."""
+        menu = Gio.Menu()
 
         show_item = Gio.MenuItem.new("Mostrar ventana", "app.show-window")
-        gmenu.append_item(show_item)
+        menu.append_item(show_item)
 
-        gmenu.append(Gio.MenuItem.new_separator(None))
+        menu.append(Gio.MenuItem.new_separator(None))
 
         quit_item = Gio.MenuItem.new("Salir", "app.quit")
-        gmenu.append_item(quit_item)
+        menu.append_item(quit_item)
 
-        menu.set_menu_model(gmenu)
         return menu
 
     def toggle_window(self):
@@ -72,4 +75,4 @@ class TrayIcon:
 
     def is_available(self) -> bool:
         """Indica si la funcionalidad de bandeja está disponible."""
-        return TRAY_AVAILABLE and self._indicator is not None
+        return self._indicator is not None

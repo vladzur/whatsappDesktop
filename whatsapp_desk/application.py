@@ -52,6 +52,7 @@ class WhatsAppDeskApplication(Gtk.Application):
         Gtk.Application.do_startup(self)
         self._config = ConfigManager()
         self._webview_manager = WebViewManager()
+        self._register_actions()
 
         # Manejar SIGINT limpiamente
         signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -83,6 +84,37 @@ class WhatsAppDeskApplication(Gtk.Application):
         if self._window is not None:
             self._window.save_geometry()
         Gtk.Application.do_shutdown(self)
+
+    def _register_actions(self):
+        """Registra las acciones GAction de la aplicación."""
+        # Acción para mostrar la ventana (desde la bandeja)
+        show_action = Gio.SimpleAction.new("show-window", None)
+        show_action.connect("activate", self._on_show_window)
+        self.add_action(show_action)
+
+        # Acción para limpiar la sesión (logout de WhatsApp)
+        clear_action = Gio.SimpleAction.new("clear-session", None)
+        clear_action.connect("activate", self._on_clear_session)
+        self.add_action(clear_action)
+
+        # Acción nueva ventana (mismo comportamiento que show)
+        new_action = Gio.SimpleAction.new("new-window", None)
+        new_action.connect("activate", self._on_show_window)
+        self.add_action(new_action)
+
+    def _on_show_window(self, action, param):
+        """Muestra la ventana principal."""
+        if self._window is not None:
+            self._window.present()
+
+    def _on_clear_session(self, action, param):
+        """Limpia los datos de sesión de WhatsApp."""
+        if self._window is not None and hasattr(self._window, "_webview"):
+            self._webview_manager.clear_session()
+            # Crear nueva sesión y recargar
+            network_session = self._webview_manager.get_network_session()
+            self._window._webview.set_property("network-session", network_session)
+            self._window._webview.load_whatsapp()
 
 
 def main():

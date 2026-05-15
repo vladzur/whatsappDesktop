@@ -8,6 +8,9 @@ from gi.repository import Gtk, WebKit, Gio, GObject  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
 from whatsapp_desk.url_handler import UrlHandler
+from whatsapp_desk.tray import TrayIcon
+from whatsapp_desk.notifications import NotificationManager
+from whatsapp_desk.dark_mode import DarkModeManager
 from whatsapp_desk.constants import WHATSAPP_URL
 
 
@@ -97,6 +100,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Manejar enlaces externos
         self._url_handler = UrlHandler(self._webview)
+
+        # Bandeja del sistema
+        self._tray = TrayIcon(self._app, self)
+
+        # Notificaciones de escritorio
+        self._notifications = NotificationManager(self._webview, self._config)
 
         self._overlay.set_child(self._webview)
         self.set_child(self._overlay)
@@ -217,7 +226,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_close_request(self, window):
         """Decide si cerrar la ventana o minimizar a la bandeja."""
-        # Por ahora, cerrar directamente. En Phase 3 se implementará hide-to-tray.
+        # Minimizar a bandeja si está habilitado y disponible
+        if self._config.get("close_to_tray") and self._tray.is_available():
+            self.hide()
+            return True  # True = prevenir cierre de ventana
         self.save_geometry()
         return False  # False = permitir cierre
 
