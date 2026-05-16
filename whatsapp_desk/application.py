@@ -28,16 +28,22 @@ _ICON_INSTALL_DIR = os.path.join(
     "apps",
 )
 _ICON_INSTALL_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk.svg")
+_ICON_SYMBOLIC_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk-symbolic.svg")
+_ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
 
 
-def _ensure_icon_installed():
-    """Copia el icono al directorio de iconos del usuario y actualiza caché."""
+def _ensure_icons_installed():
+    """Copia los iconos al directorio XDG del usuario y actualiza caché."""
     if not os.path.isfile(_ICON_SRC):
         return False
     try:
         os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
-        if not os.path.isfile(_ICON_INSTALL_PATH):
-            shutil.copy2(_ICON_SRC, _ICON_INSTALL_PATH)
+        for src, dst in [
+            (_ICON_SRC, _ICON_INSTALL_PATH),
+            (_ICON_SYMBOLIC_SRC, _ICON_SYMBOLIC_PATH),
+        ]:
+            if os.path.isfile(src) and not os.path.isfile(dst):
+                shutil.copy2(src, dst)
         # Actualizar caché de iconos GTK si la herramienta existe
         cache_dir = os.path.dirname(os.path.dirname(_ICON_INSTALL_DIR))
         subprocess.run(
@@ -87,8 +93,8 @@ class WhatsAppDeskApplication(Gtk.Application):
         """Inicializa servicios antes de crear ventanas."""
         Gtk.Application.do_startup(self)
 
-        # Instalar icono en el sistema para dock y bandeja
-        _ensure_icon_installed()
+        # Instalar iconos en el sistema para dock y bandeja
+        _ensure_icons_installed()
 
         self._config = ConfigManager()
         self._webview_manager = WebViewManager()
