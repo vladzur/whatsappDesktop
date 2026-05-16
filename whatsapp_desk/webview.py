@@ -18,10 +18,13 @@ class WhatsAppWebView(WebKit.WebView):
     """
 
     def __init__(self, network_session=None):
-        super().__init__()
-        self._setup_settings()
+        # network_session es construct-only en WebKit 6.0, debe pasarse
+        # como keyword argument al constructor padre
+        kwargs = {}
         if network_session is not None:
-            self.set_property("network-session", network_session)
+            kwargs["network_session"] = network_session
+        super().__init__(**kwargs)
+        self._setup_settings()
 
     def _setup_settings(self):
         """Configura los ajustes del WebView para WhatsApp Web."""

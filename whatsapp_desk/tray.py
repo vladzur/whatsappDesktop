@@ -55,8 +55,6 @@ class TrayIcon:
         show_item = Gio.MenuItem.new("Mostrar ventana", "app.show-window")
         menu.append_item(show_item)
 
-        menu.append(Gio.MenuItem.new_separator(None))
-
         quit_item = Gio.MenuItem.new("Salir", "app.quit")
         menu.append_item(quit_item)
 

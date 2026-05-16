@@ -109,12 +109,9 @@ class WhatsAppDeskApplication(Gtk.Application):
 
     def _on_clear_session(self, action, param):
         """Limpia los datos de sesión de WhatsApp."""
-        if self._window is not None and hasattr(self._window, "_webview"):
+        if self._window is not None:
             self._webview_manager.clear_session()
-            # Crear nueva sesión y recargar
-            network_session = self._webview_manager.get_network_session()
-            self._window._webview.set_property("network-session", network_session)
-            self._window._webview.load_whatsapp()
+            self._window.replace_webview()
 
 
 def main():

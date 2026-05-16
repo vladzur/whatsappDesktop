@@ -45,7 +45,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def _setup_headerbar(self):
         """Crea la HeaderBar con botones de acción."""
         header = Gtk.HeaderBar()
-        header.set_show_title(True)
         header.set_title_widget(Gtk.Label(label="WhatsApp Desk"))
 
         # Botón de recarga
@@ -253,4 +252,31 @@ class MainWindow(Gtk.ApplicationWindow):
     def hide_to_tray(self):
         """Oculta la ventana al área de notificación."""
         self.hide()
-        # Se implementará completamente en Phase 3
+
+    def replace_webview(self):
+        """Recrea el WebView con una nueva sesión de red (útil tras clear_session)."""
+        # Eliminar WebView antiguo
+        old_webview = self._webview
+        self._overlay.set_child(None)
+
+        # Crear nuevo WebView con nueva sesión
+        network_session = self._webview_manager.get_network_session()
+        self._webview = WhatsAppWebView(network_session=network_session)
+
+        # Reconectar señales
+        self._webview.connect("load-changed", self._on_load_changed)
+        self._webview.connect("notify::title", self._on_title_changed)
+        self._webview.connect("web-process-terminated", self._on_web_process_terminated)
+
+        # Reconectar handler de enlaces externos
+        self._url_handler = UrlHandler(self._webview)
+
+        # Recrear notificaciones
+        self._notifications = NotificationManager(self._webview, self._config)
+
+        # Establecer en el overlay y cargar
+        self._overlay.set_child(self._webview)
+        self._webview.load_whatsapp()
+
+        # Destruir el viejo WebView
+        old_webview.destroy()
