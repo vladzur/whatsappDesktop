@@ -26,6 +26,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._webview = None
         self._spinner = None
         self._overlay = None
+        self.force_quit = False  # True cuando app.quit omite el guard de bandeja
 
         self._setup_window()
         self._setup_headerbar()
@@ -259,6 +260,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_close_request(self, window):
         """Decide si cerrar la ventana o minimizar a la bandeja."""
+        # force_quit se activa desde app.quit para saltarse el guard
+        if self.force_quit:
+            self.save_geometry()
+            return False  # permitir cierre
         # Minimizar a bandeja si está habilitado y disponible
         if self._config.get("close_to_tray") and self._tray.is_available():
             self.hide()
