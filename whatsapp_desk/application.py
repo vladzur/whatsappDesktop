@@ -1,7 +1,10 @@
 """Aplicación principal de WhatsApp Desk."""
 
+import os
 import sys
 import signal
+import shutil
+import subprocess
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -11,6 +14,39 @@ from gi.repository import Gtk, Gio, GLib  # noqa: E402
 from whatsapp_desk.constants import APP_ID
 from whatsapp_desk.config import ConfigManager
 from whatsapp_desk.webview_manager import WebViewManager
+
+# Ruta al icono SVG dentro del proyecto
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ICON_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk.svg")
+
+# Directorio de instalación del icono según XDG
+_ICON_INSTALL_DIR = os.path.join(
+    os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
+    "icons",
+    "hicolor",
+    "scalable",
+    "apps",
+)
+_ICON_INSTALL_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk.svg")
+
+
+def _ensure_icon_installed():
+    """Copia el icono al directorio de iconos del usuario y actualiza caché."""
+    if not os.path.isfile(_ICON_SRC):
+        return False
+    try:
+        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        if not os.path.isfile(_ICON_INSTALL_PATH):
+            shutil.copy2(_ICON_SRC, _ICON_INSTALL_PATH)
+        # Actualizar caché de iconos GTK si la herramienta existe
+        cache_dir = os.path.dirname(os.path.dirname(_ICON_INSTALL_DIR))
+        subprocess.run(
+            ["gtk-update-icon-cache", "-t", "-f", cache_dir],
+            capture_output=True,
+        )
+        return True
+    except OSError:
+        return False
 
 
 class WhatsAppDeskApplication(Gtk.Application):
@@ -50,6 +86,10 @@ class WhatsAppDeskApplication(Gtk.Application):
     def do_startup(self):
         """Inicializa servicios antes de crear ventanas."""
         Gtk.Application.do_startup(self)
+
+        # Instalar icono en el sistema para dock y bandeja
+        _ensure_icon_installed()
+
         self._config = ConfigManager()
         self._webview_manager = WebViewManager()
         self._register_actions()

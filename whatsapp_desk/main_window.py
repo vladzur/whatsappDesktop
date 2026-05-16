@@ -34,6 +34,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _setup_window(self):
         """Configura propiedades básicas de la ventana."""
         self.set_title("WhatsApp Desk")
+        self.set_icon_name("whatsapp-desk")
         self.set_default_size(
             self._config.get("window_width"),
             self._config.get("window_height"),

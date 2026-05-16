@@ -14,12 +14,6 @@ try:
 except (ValueError, ImportError, RuntimeError):
     pass
 
-# Ruta al icono SVG de la aplicación
-_ICON_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "whatsapp_desk.svg",
-)
-
 
 class TrayIcon:
     """Icono en la bandeja del sistema con menú contextual.
@@ -40,19 +34,23 @@ class TrayIcon:
     def _create_indicator(self):
         """Crea el indicador AppIndicator y su menú."""
         try:
-            icon_name = _ICON_PATH if os.path.isfile(_ICON_PATH) else "whatsapp-desk"
+            from gi.repository import AyatanaAppIndicator3 as AppIndicator  # noqa: E402
+            from gi.repository import Gio as AppIndicatorGio  # noqa: E402
+
+            # AppIndicator busca por nombre en el tema de iconos.
+            # Usamos "whatsapp-desk" que corresponde al SVG instalado.
             self._indicator = AppIndicator.Indicator.new(
                 "whatsapp-desk",
-                icon_name,
+                "whatsapp-desk",
                 AppIndicator.IndicatorCategory.APPLICATION_STATUS,
             )
             self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
             self._indicator.set_title("WhatsApp Desk")
 
-            # Gio.Menu como modelo de menú (soportado por AppIndicator 0.5+)
             menu = self._build_menu()
             self._indicator.set_menu(menu)
-        except Exception:
+        except Exception as exc:
+            print(f"[TrayIcon] Error al crear indicador: {exc}")
             self._indicator = None
 
     def _build_menu(self):
