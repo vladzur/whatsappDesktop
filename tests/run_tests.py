@@ -468,6 +468,7 @@ class TestMainWindow(unittest.TestCase):
         """Verifica que hide_to_tray() oculta la ventana."""
         from whatsapp_desk.main_window import MainWindow
         win = MainWindow.__new__(MainWindow)
+        win.force_quit = False
         win.hide = MagicMock()
         win.hide_to_tray()
         win.hide.assert_called_once()
@@ -476,6 +477,7 @@ class TestMainWindow(unittest.TestCase):
         """Verifica que close-request oculta la ventana si la bandeja está disponible."""
         from whatsapp_desk.main_window import MainWindow
         win = MainWindow.__new__(MainWindow)
+        win.force_quit = False
         win._config = MagicMock()
         win._tray = MagicMock()
         win._config.get.return_value = True  # close_to_tray
@@ -490,6 +492,7 @@ class TestMainWindow(unittest.TestCase):
         """Verifica que close-request cierra la ventana si la bandeja no está disponible."""
         from whatsapp_desk.main_window import MainWindow
         win = MainWindow.__new__(MainWindow)
+        win.force_quit = False
         win._config = MagicMock()
         win._tray = MagicMock()
         win._config.get.return_value = True  # close_to_tray
