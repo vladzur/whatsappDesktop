@@ -91,66 +91,96 @@ class TestWhatsAppWebView(unittest.TestCase):
         from whatsapp_desk.webview import WhatsAppWebView
         wv = WhatsAppWebView.__new__(WhatsAppWebView)
         wv.set_property = MagicMock()
+        wv.get_user_content_manager = MagicMock()
+        wv.set_settings = MagicMock()
         return wv
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_user_agent_set_to_chrome(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_settings_created_with_chrome_ua(self, mock_gobject, mock_webkit):
         from whatsapp_desk.resources.ua_chrome import CHROME_USER_AGENT
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        mock_settings.set_property.assert_any_call("user-agent", CHROME_USER_AGENT)
+
+        # Verificar que GObject.new fue llamado con el UA de Chrome
+        mock_gobject.new.assert_called_once()
+        call_kwargs = mock_gobject.new.call_args[1]
+        self.assertEqual(call_kwargs.get("user_agent"), CHROME_USER_AGENT)
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_javascript_enabled(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_javascript_enabled(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        mock_settings.set_property.assert_any_call("enable-javascript", True)
+
+        call_kwargs = mock_gobject.new.call_args[1]
+        self.assertTrue(call_kwargs.get("enable_javascript"))
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_local_storage_enabled(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_local_storage_enabled(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        mock_settings.set_property.assert_any_call("enable-html5-local-storage", True)
+
+        call_kwargs = mock_gobject.new.call_args[1]
+        self.assertTrue(call_kwargs.get("enable_html5_local_storage"))
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_clipboard_access_enabled(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_clipboard_access_enabled(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        mock_settings.set_property.assert_any_call("javascript-can-access-clipboard", True)
+
+        call_kwargs = mock_gobject.new.call_args[1]
+        self.assertTrue(call_kwargs.get("javascript_can_access_clipboard"))
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_webgl_enabled(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_webgl_enabled(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        mock_settings.set_property.assert_any_call("enable-webgl", True)
+
+        call_kwargs = mock_gobject.new.call_args[1]
+        self.assertTrue(call_kwargs.get("enable_webgl"))
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_network_session_set_on_webview(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_settings_applied_to_webview(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
-        mock_ns = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
         wv._setup_settings()
-        wv.set_property("network-session", mock_ns)
-        wv.set_property.assert_called_with("network-session", mock_ns)
+
+        wv.set_settings.assert_called_once_with(mock_settings)
 
     @patch("whatsapp_desk.webview.WebKit")
-    def test_load_whatsapp_loads_correct_url(self, mock_webkit):
+    @patch("whatsapp_desk.webview.GObject")
+    def test_load_whatsapp_loads_correct_url(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
         wv = self._make_wv()
-        wv.get_settings = MagicMock(return_value=mock_settings)
+        wv.get_user_content_manager = MagicMock()
+        wv._setup_settings()
+        wv._inject_browser_spoof = MagicMock()
         wv.load_uri = MagicMock()
-        wv._setup_settings()
+
         wv.load_whatsapp()
         wv.load_uri.assert_called_once_with(WHATSAPP_URL)
 
