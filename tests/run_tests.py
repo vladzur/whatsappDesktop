@@ -320,7 +320,7 @@ class TestNotificationManager(unittest.TestCase):
 
     @patch("whatsapp_desk.notifications.WebKit")
     @patch("whatsapp_desk.notifications.Notify")
-    @patch("whatsapp_desk.notifications.time.time")
+    @patch("whatsapp_desk.notifications.time")
     def test_debounce_rapid_messages(self, mock_notify, mock_webkit, mock_time):
         import whatsapp_desk.notifications as nmod
         nmod.NOTIFY_AVAILABLE = True
@@ -328,7 +328,20 @@ class TestNotificationManager(unittest.TestCase):
         mock_cfg = MagicMock()
         mock_cfg.get.return_value = True
 
-        mock_time.return_value = 100.0
+        # Configurar time.time() para devolver valores controlados
+        call_count = [0]
+
+        def fake_time():
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                # __init__ asigna _last_notification_time con el valor 0 real,
+                # así que time.time solo se llama en _on_message_received
+                return 100.0
+            return 100.5
+
+        mock_time.time = fake_time
+
+        # Forzar _last_notification_time a 0 (ya está en 0 por defecto)
         mgr = nmod.NotificationManager(mock_wv, mock_cfg)
 
         mock_js = MagicMock()
@@ -339,7 +352,6 @@ class TestNotificationManager(unittest.TestCase):
         mgr._on_message_received(None, mock_js)
         self.assertEqual(mock_notify.Notification.new.call_count, 1)
 
-        mock_time.return_value = 100.5
         mgr._on_message_received(None, mock_js)
         self.assertEqual(mock_notify.Notification.new.call_count, 1)
 
