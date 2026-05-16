@@ -14,9 +14,11 @@ from whatsapp_desk.constants import DATA_HOME
 class WebViewManager:
     """Crea y administra la sesión de red persistente de WebKit."""
 
-    def __init__(self):
-        self._data_dir = os.path.join(DATA_HOME, "webkit-data")
-        self._cache_dir = os.path.join(DATA_HOME, "webkit-cache")
+    def __init__(self, data_home=None):
+        if data_home is None:
+            data_home = DATA_HOME
+        self._data_dir = os.path.join(data_home, "webkit-data")
+        self._cache_dir = os.path.join(data_home, "webkit-cache")
         self._network_session = None
         self._ensure_directories()
 

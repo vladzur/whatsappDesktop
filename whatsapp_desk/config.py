@@ -19,14 +19,17 @@ DEFAULT_CONFIG = {
 class ConfigManager:
     """Administra la configuración de la aplicación en un archivo JSON."""
 
-    def __init__(self):
-        self._file_path = os.path.join(CONFIG_HOME, "settings.json")
+    def __init__(self, config_dir=None):
+        if config_dir is None:
+            config_dir = CONFIG_HOME
+        self._config_dir = config_dir
+        self._file_path = os.path.join(self._config_dir, "settings.json")
         self._data = {}
         self._load()
 
     def _load(self):
         """Carga la configuración desde disco o usa los valores por defecto."""
-        os.makedirs(CONFIG_HOME, exist_ok=True)
+        os.makedirs(self._config_dir, exist_ok=True)
         try:
             with open(self._file_path, "r") as f:
                 self._data = json.load(f)
@@ -39,7 +42,7 @@ class ConfigManager:
 
     def _save(self):
         """Guarda la configuración a disco."""
-        os.makedirs(CONFIG_HOME, exist_ok=True)
+        os.makedirs(self._config_dir, exist_ok=True)
         with open(self._file_path, "w") as f:
             json.dump(self._data, f, indent=2)
 
