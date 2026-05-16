@@ -117,23 +117,11 @@ class StatusNotifierItem:
                 Gio.BusType.SESSION, None
             )
 
-            # Registrar el nombre de bus
-            self._owner_id = Gio.bus_own_name_on_connection(
-                self._connection,
-                _bus_name(),
-                Gio.BusNameOwnerFlags.NONE,
-                None,  # name_acquired
-                self._on_name_lost,
-            )
-            if self._owner_id == 0:
-                print("[SNI] No se pudo registrar el nombre D-Bus")
-                return
-
             # Construir la interfaz desde XML
             node = Gio.DBusNodeInfo.new_for_xml(SNI_INTROSPECTION_XML)
             interface_info = node.interfaces[0]
 
-            # Registrar el objeto
+            # Registrar el objeto en el bus antes de pedir el nombre
             self._sni_reg_id = self._connection.register_object(
                 SNI_PATH,
                 interface_info,
@@ -145,10 +133,45 @@ class StatusNotifierItem:
                 print("[SNI] No se pudo registrar objeto StatusNotifierItem")
                 return
 
-            self._registered = True
-            print("[SNI] Icono de bandeja registrado correctamente")
+            # Registrar el nombre de bus; el callback name_acquired llama al Watcher
+            self._owner_id = Gio.bus_own_name_on_connection(
+                self._connection,
+                _bus_name(),
+                Gio.BusNameOwnerFlags.NONE,
+                self._on_name_acquired,
+                self._on_name_lost,
+            )
+            if self._owner_id == 0:
+                print("[SNI] No se pudo registrar el nombre D-Bus")
+                return
+
         except Exception as exc:
             print(f"[SNI] Error al inicializar: {exc}")
+
+    def _register_with_watcher(self):
+        """Notifica al StatusNotifierWatcher que existe este indicador.
+
+        Este paso es OBLIGATORIO para que la extensión appindicatorsupport
+        de GNOME Shell detecte y muestre el icono en la barra de estado.
+        """
+        try:
+            self._connection.call_sync(
+                "org.kde.StatusNotifierWatcher",       # dest
+                "/StatusNotifierWatcher",              # object path
+                "org.kde.StatusNotifierWatcher",       # interface
+                "RegisterStatusNotifierItem",          # method
+                GLib.Variant("(s)", (_bus_name(),)),   # args: bus name
+                None,                                  # reply type
+                Gio.DBusCallFlags.NONE,
+                -1,                                    # timeout
+                None,
+            )
+            self._registered = True
+            print("[SNI] Icono de bandeja registrado en el Watcher correctamente")
+        except Exception as exc:
+            # El Watcher puede no estar disponible (escritorio sin soporte SNI)
+            print(f"[SNI] No se pudo registrar en el Watcher: {exc}")
+            self._registered = False
 
     def _handle_method_call(self, connection, sender, object_path,
                             interface_name, method_name, parameters,
@@ -177,7 +200,10 @@ class StatusNotifierItem:
             "Title": GLib.Variant("s", "WhatsApp Desk"),
             "Status": GLib.Variant("s", "Active"),
             "WindowId": GLib.Variant("i", 0),
-            "IconName": GLib.Variant("s", _ICON_SYMBOLIC_PATH),
+            # IconName debe ser el nombre del icono (sin ruta ni extensión),
+            # NO la ruta completa. El protocolo SNI resuelve el icono por nombre
+            # usando IconThemePath como directorio de búsqueda.
+            "IconName": GLib.Variant("s", "whatsapp-desk-symbolic"),
             "IconThemePath": GLib.Variant("s", _ICON_THEME_DIR),
             "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
@@ -188,6 +214,15 @@ class StatusNotifierItem:
                              interface_name, key, value):
         """Propiedades de solo lectura."""
         return False
+
+    def _on_name_acquired(self, connection, name):
+        """Callback cuando se adquiere el nombre D-Bus.
+
+        Este es el momento correcto para notificar al StatusNotifierWatcher,
+        ya que el nombre de bus ya está disponible y el objeto D-Bus registrado.
+        """
+        print(f"[SNI] Nombre D-Bus adquirido: {name}")
+        self._register_with_watcher()
 
     def _on_name_lost(self, connection, name):
         """Callback cuando se pierde el nombre D-Bus."""
