@@ -129,6 +129,9 @@ class WhatsAppDeskApplication(Gtk.Application):
         """Limpieza al cerrar la aplicación."""
         if self._window is not None:
             self._window.save_geometry()
+            # Limpiar recursos D-Bus del icono de bandeja
+            if self._window._tray is not None:
+                self._window._tray.cleanup()
         Gtk.Application.do_shutdown(self)
 
     def _register_actions(self):
