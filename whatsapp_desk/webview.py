@@ -4,7 +4,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
-from gi.repository import GObject, WebKit  # noqa: E402
+from gi.repository import GObject, Gtk, WebKit  # noqa: E402
 
 from whatsapp_desk.constants import WHATSAPP_URL
 from whatsapp_desk.resources.ua_chrome import CHROME_USER_AGENT
@@ -27,6 +27,8 @@ class WhatsAppWebView(WebKit.WebView):
         super().__init__(**kwargs)
         self._setup_settings()
         self._inject_browser_spoof()
+        # Manejar solicitudes de permisos (micrófono, cámara, notificaciones)
+        self.connect("permission-request", self._on_permission_request)
 
     def _setup_settings(self):
         """Configura los ajustes del WebView para WhatsApp Web."""
@@ -39,6 +41,14 @@ class WhatsAppWebView(WebKit.WebView):
             javascript_can_access_clipboard=True,
             allow_file_access_from_file_urls=False,
             enable_write_console_messages_to_stdout=False,
+            # ── Media ──────────────────────────────────────────────────────
+            # Permite que los audios y videos comiencen sin gesto del usuario.
+            # Sin esto, las notas de voz y videos de WhatsApp no se reproducen.
+            media_playback_requires_user_gesture=False,
+            # Habilita acceso a micrófono y cámara (necesario para llamadas).
+            enable_media_stream=True,
+            # Habilita la Encrypted Media Extension (EME) para contenido protegido.
+            enable_encrypted_media=True,
         )
         self.set_settings(settings)
 
@@ -128,6 +138,72 @@ class WhatsAppWebView(WebKit.WebView):
             WebKit.UserScriptInjectionTime.START,
         )
         user_content.add_script(user_script)
+
+    # ── Permisos ──────────────────────────────────────────────────────────
+
+    def _on_permission_request(
+        self, webview: "WhatsAppWebView", request: WebKit.PermissionRequest
+    ) -> bool:
+        """Maneja solicitudes de permisos de la página web.
+
+        WhatsApp Web solicita permisos para:
+        - Notificaciones del escritorio
+        - Micrófono (llamadas de voz)
+        - Cámara (videollamadas)
+
+        Los permisos de notificación se conceden automáticamente.
+        Los de micrófono/cámara muestran un diálogo de confirmación.
+        """
+        # Notificaciones: conceder automáticamente (ya las manejamos nosotros)
+        if isinstance(request, WebKit.NotificationPermissionRequest):
+            request.allow()
+            return True
+
+        # Micrófono y/o cámara: preguntar al usuario
+        if isinstance(
+            request,
+            (WebKit.UserMediaPermissionRequest, WebKit.DeviceInfoPermissionRequest),
+        ):
+            self._ask_media_permission(request)
+            return True
+
+        # Cualquier otro permiso: denegar por defecto
+        request.deny()
+        return True
+
+    def _ask_media_permission(self, request: WebKit.PermissionRequest):
+        """Muestra un diálogo pidiendo confirmación para micrófono/cámara."""
+        is_video = (
+            isinstance(request, WebKit.UserMediaPermissionRequest)
+            and request.get_property("is-for-video-device")
+        )
+        device_label = "cámara y micrófono" if is_video else "micrófono"
+
+        dialog = Gtk.AlertDialog()
+        dialog.set_message(f"WhatsApp solicita acceso al {device_label}")
+        dialog.set_detail(
+            f"¿Deseas permitir que WhatsApp use el {device_label} de tu equipo?"
+        )
+        dialog.set_buttons(["Permitir", "Denegar"])
+        dialog.set_default_button(0)
+        dialog.set_cancel_button(1)
+        dialog.choose(
+            self.get_root(),
+            None,
+            self._on_media_permission_response,
+            request,
+        )
+
+    def _on_media_permission_response(self, dialog, result, request):
+        """Concede o deniega el permiso según la respuesta del usuario."""
+        try:
+            button = dialog.choose_finish(result)
+            if button == 0:
+                request.allow()
+            else:
+                request.deny()
+        except Exception:
+            request.deny()
 
     def load_whatsapp(self):
         """Carga WhatsApp Web."""
