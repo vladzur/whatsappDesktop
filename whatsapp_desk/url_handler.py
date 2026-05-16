@@ -15,6 +15,9 @@ WHATSAPP_DOMAINS = {
     "www.whatsapp.com",
     "faq.whatsapp.com",
     "blog.whatsapp.com",
+    "flows.whatsapp.net",
+    "whatsapp.net",
+    "www.whatsapp.net",
 }
 
 
@@ -50,8 +53,10 @@ class UrlHandler:
         try:
             parsed = urlparse(uri)
             hostname = (parsed.hostname or "").lower()
-            return hostname in WHATSAPP_DOMAINS or hostname.endswith(
-                ".whatsapp.com"
+            return (
+                hostname in WHATSAPP_DOMAINS
+                or hostname.endswith(".whatsapp.com")
+                or hostname.endswith(".whatsapp.net")
             )
         except Exception:
             return False
