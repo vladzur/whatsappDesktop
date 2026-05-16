@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
   <!-- Burbuja de chat con forma de teléfono — diseño symbolic monocromático -->
-  <g fill="#2e3436">
+  <!-- NOTA: usa currentColor para que se adapte al tema del panel de GNOME -->
+  <g fill="currentColor">
     <!-- Cuerpo del teléfono/burbuja -->
     <path d="M1 2 L1 12 C1 13.1 1.9 14 3 14 L10 14 L12 16 L12 14 L13 14 C14.1 14 15 13.1 15 12 L15 2 C15 0.9 14.1 0 13 0 L3 0 C1.9 0 1 0.9 1 2 Z"/>
     <!-- Auricular del teléfono -->
-    <path d="M5 5 C5 5 4.5 6 5.5 7.5 C6.5 9 7.5 9.5 7.5 9.5 C7.5 9.5 6 11 6.5 12 C7 13 8.5 13 9.5 11.5 C10.5 10 10 8 8.5 7 C7 6 5 5 5 5 Z" fill="#555753" fill-opacity="0.5"/>
+    <path d="M5 5 C5 5 4.5 6 5.5 7.5 C6.5 9 7.5 9.5 7.5 9.5 C7.5 9.5 6 11 6.5 12 C7 13 8.5 13 9.5 11.5 C10.5 10 10 8 8.5 7 C7 6 5 5 5 5 Z" opacity="0.5"/>
   </g>
 </svg>
