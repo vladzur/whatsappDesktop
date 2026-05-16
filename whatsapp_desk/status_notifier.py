@@ -166,7 +166,7 @@ class StatusNotifierItem:
                 GLib.Variant("(s)", (_bus_name(),)),   # args: bus name
                 None,                                  # reply type
                 Gio.DBusCallFlags.NONE,
-                -1,                                    # timeout
+                2000,                                  # timeout (ms)
                 None,
             )
             self._registered = True
