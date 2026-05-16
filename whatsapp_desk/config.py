@@ -48,7 +48,11 @@ class ConfigManager:
 
     def get(self, key, default=None):
         """Obtiene un valor de configuración."""
-        return self._data.get(key, default or DEFAULT_CONFIG.get(key))
+        if key in self._data:
+            return self._data[key]
+        if default is not None:
+            return default
+        return DEFAULT_CONFIG.get(key)
 
     def set(self, key, value):
         """Establece un valor de configuración y lo persiste."""

@@ -1,6 +1,5 @@
 """Integración con la bandeja del sistema vía AyatanaAppIndicator3."""
 
-import os
 import gi
 
 TRAY_AVAILABLE = False

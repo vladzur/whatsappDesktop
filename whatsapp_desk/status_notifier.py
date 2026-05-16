@@ -22,8 +22,11 @@ SNI_PATH = "/StatusNotifierItem"
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ICON_SYMBOLIC_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk-symbolic.svg")
 _XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-_ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons", "hicolor")
-_ICON_INSTALL_DIR = os.path.join(_ICON_THEME_DIR, "scalable", "apps")
+# appindicatorsupport espera la raíz del directorio de iconos XDG,
+# NO la subdirectamente del tema (hicolor). El sufijo /hicolor lo añade
+# internamente la extensión al buscar el icono por nombre.
+_ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons")
+_ICON_INSTALL_DIR = os.path.join(_XDG_DATA, "icons", "hicolor", "scalable", "apps")
 _ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
 
 # XML de introspección D-Bus para org.kde.StatusNotifierItem
@@ -163,11 +166,21 @@ class StatusNotifierItem:
                 GLib.Variant("(s)", (_bus_name(),)),   # args: bus name
                 None,                                  # reply type
                 Gio.DBusCallFlags.NONE,
-                -1,                                    # timeout
+                2000,                                  # timeout (ms)
                 None,
             )
             self._registered = True
             print("[SNI] Icono de bandeja registrado en el Watcher correctamente")
+
+            # Emitir NewIconThemePath para que appindicatorsupport recargue
+            # el icono desde nuestro directorio de temas personalizado.
+            self._connection.emit_signal(
+                None,                                  # destination (broadcast)
+                SNI_PATH,
+                "org.kde.StatusNotifierItem",
+                "NewIconThemePath",
+                GLib.Variant("(s)", (_ICON_THEME_DIR,)),
+            )
         except Exception as exc:
             # El Watcher puede no estar disponible (escritorio sin soporte SNI)
             print(f"[SNI] No se pudo registrar en el Watcher: {exc}")
@@ -233,8 +246,8 @@ class StatusNotifierItem:
         GLib.idle_add(self.toggle_window)
 
     def _on_secondary_activate(self):
-        """Callback de clic secundario."""
-        pass
+        """Callback de clic secundario — cierra la aplicación."""
+        GLib.idle_add(self._app.activate_action, "quit", None)
 
     def toggle_window(self):
         """Muestra u oculta la ventana principal."""

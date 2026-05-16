@@ -129,6 +129,9 @@ class WhatsAppDeskApplication(Gtk.Application):
         """Limpieza al cerrar la aplicación."""
         if self._window is not None:
             self._window.save_geometry()
+            # Limpiar recursos D-Bus del icono de bandeja
+            if self._window._tray is not None:
+                self._window._tray.cleanup()
         Gtk.Application.do_shutdown(self)
 
     def _register_actions(self):
@@ -148,10 +151,24 @@ class WhatsAppDeskApplication(Gtk.Application):
         new_action.connect("activate", self._on_show_window)
         self.add_action(new_action)
 
+        # Acción quit — GTK4 NO la registra automáticamente como GAction.
+        # Sin esto, el ítem "Salir" del menú y la bandeja no hacen nada.
+        quit_action = Gio.SimpleAction.new("quit", None)
+        quit_action.connect("activate", self._on_quit)
+        self.add_action(quit_action)
+
     def _on_show_window(self, action, param):
         """Muestra la ventana principal."""
         if self._window is not None:
             self._window.present()
+
+    def _on_quit(self, action, param):
+        """Cierra la aplicación completamente, ignorando close_to_tray."""
+        if self._window is not None:
+            self._window.save_geometry()
+            # Forzar cierre real: desconectar el guard de close-request
+            self._window.force_quit = True
+        self.quit()
 
     def _on_clear_session(self, action, param):
         """Limpia los datos de sesión de WhatsApp."""
