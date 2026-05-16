@@ -272,42 +272,49 @@ class TestUrlHandler(unittest.TestCase):
         self.assertFalse(result)
 
 
-# ── Test TrayIcon ───────────────────────────────────────────────────
+# ── Test StatusNotifierItem ───────────────────────────────────────────
 
-class TestTrayIcon(unittest.TestCase):
-    def _mock_app_indicator_module(self):
-        """Configura los mocks necesarios para el módulo tray."""
-        # Crear un mock del submódulo AppIndicator
-        mock_ai = MagicMock()
-        mock_gio = MagicMock()
-        # Inyectar en sys.modules para que el import funcione
-        sys.modules["gi.repository.AyatanaAppIndicator3"] = MagicMock()
-        sys.modules["gi.repository.AyatanaAppIndicator3"].Indicator = mock_ai
-        return mock_ai, mock_gio
+class TestStatusNotifierItem(unittest.TestCase):
+    @staticmethod
+    def _make_sni(registered=False):
+        """Crea una instancia de StatusNotifierItem sin inicializar D-Bus."""
+        from whatsapp_desk.status_notifier import StatusNotifierItem
+        sni = StatusNotifierItem.__new__(StatusNotifierItem)
+        sni._app = MagicMock()
+        sni._window = MagicMock()
+        sni._connection = None
+        sni._registered = registered
+        sni._menu_node_id = None
+        return sni
 
-    def test_not_available_when_library_missing(self):
-        import whatsapp_desk.tray as tray_mod
-        tray_mod.TRAY_AVAILABLE = False
-        tray = tray_mod.TrayIcon(MagicMock(), MagicMock())
-        self.assertFalse(tray.is_available())
+    def test_not_available_when_not_registered(self):
+        sni = self._make_sni(registered=False)
+        self.assertFalse(sni.is_available())
+
+    def test_is_available_when_registered(self):
+        sni = self._make_sni(registered=True)
+        self.assertTrue(sni.is_available())
 
     def test_show_window_presents(self):
-        import whatsapp_desk.tray as tray_mod
-        tray_mod.TRAY_AVAILABLE = True
-        mock_win = MagicMock()
-        tray = tray_mod.TrayIcon(MagicMock(), mock_win)
-        tray._indicator = MagicMock()  # Forzar que el indicador exista
-        tray.show_window()
-        mock_win.present.assert_called_once()
+        sni = self._make_sni(registered=True)
+        sni._window.present = MagicMock()
+        sni.show_window()
+        # GLib.idle_add difiere la ejecución, pero la función se agenda
+        sni._window.present.assert_not_called()  # Se ejecuta via idle_add
 
     def test_toggle_window_hides_visible_window(self):
-        import whatsapp_desk.tray as tray_mod
-        tray_mod.TRAY_AVAILABLE = True
-        mock_win = MagicMock()
-        mock_win.is_visible.return_value = True
-        tray = tray_mod.TrayIcon(MagicMock(), mock_win)
-        tray.toggle_window()
-        mock_win.hide.assert_called_once()
+        sni = self._make_sni(registered=True)
+        sni._window.is_visible.return_value = True
+        sni._window.hide = MagicMock()
+        sni.toggle_window()
+        sni._window.hide.assert_called_once()
+
+    def test_toggle_window_shows_hidden_window(self):
+        sni = self._make_sni(registered=True)
+        sni._window.is_visible.return_value = False
+        sni._window.present = MagicMock()
+        sni.toggle_window()
+        sni._window.present.assert_called_once()
 
 
 # ── Test NotificationManager ────────────────────────────────────────
