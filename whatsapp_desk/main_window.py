@@ -47,6 +47,12 @@ class MainWindow(Gtk.ApplicationWindow):
         header = Gtk.HeaderBar()
         header.set_title_widget(Gtk.Label(label="WhatsApp Desk"))
 
+        # Botón de ocultar a bandeja
+        hide_btn = Gtk.Button.new_from_icon_name("window-hide-symbolic")
+        hide_btn.set_tooltip_text("Minimizar a la bandeja del sistema")
+        hide_btn.connect("clicked", self._on_hide_to_tray)
+        header.pack_start(hide_btn)
+
         # Botón de recarga
         refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
         refresh_btn.set_tooltip_text("Recargar WhatsApp Web")
@@ -122,6 +128,11 @@ class MainWindow(Gtk.ApplicationWindow):
         """Registra atajos de teclado básicos."""
         controller = Gtk.ShortcutController()
         self.add_controller(controller)
+
+        # Ctrl+W: Minimizar a bandeja
+        trigger = Gtk.ShortcutTrigger.parse_string("<Control>w")
+        action = Gtk.CallbackAction.new(self._on_hide_to_tray_shortcut)
+        controller.add_shortcut(Gtk.Shortcut.new(trigger=trigger, action=action))
 
         # Ctrl+Q: Salir
         trigger = Gtk.ShortcutTrigger.parse_string("<Control>q")
@@ -202,6 +213,13 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_refresh_shortcut(self, widget, shortcut):
         self._webview.reload()
+
+    def _on_hide_to_tray_shortcut(self, widget, shortcut):
+        self.hide_to_tray()
+
+    def _on_hide_to_tray(self, button):
+        """Minimiza la ventana a la bandeja del sistema."""
+        self.hide_to_tray()
 
     def _on_toggle_dark_mode(self, button):
         """Alterna el modo oscuro."""
