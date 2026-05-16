@@ -9,6 +9,7 @@ from gi.repository import Gtk, Gdk, WebKit, Gio  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
 from whatsapp_desk.url_handler import UrlHandler
+from whatsapp_desk.download_manager import DownloadManager
 from whatsapp_desk.status_notifier import StatusNotifierItem
 from whatsapp_desk.notifications import NotificationManager
 from whatsapp_desk.dark_mode import DarkModeManager
@@ -112,8 +113,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._webview.connect("notify::title", self._on_title_changed)
         self._webview.connect("web-process-terminated", self._on_web_process_terminated)
 
-        # Manejar enlaces externos
+        # Manejar enlaces externos y descargas
         self._url_handler = UrlHandler(self._webview)
+        self._download_manager = DownloadManager(network_session, self)
 
         # Bandeja del sistema
         self._tray = StatusNotifierItem(self._app, self)
@@ -308,8 +310,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._webview.connect("notify::title", self._on_title_changed)
         self._webview.connect("web-process-terminated", self._on_web_process_terminated)
 
-        # Reconectar handler de enlaces externos
+        # Reconectar handler de enlaces externos y gestor de descargas
         self._url_handler = UrlHandler(self._webview)
+        self._download_manager = DownloadManager(network_session, self)
 
         # Recrear notificaciones
         self._notifications = NotificationManager(self._webview, self._config)
