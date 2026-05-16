@@ -321,7 +321,7 @@ class TestNotificationManager(unittest.TestCase):
     @patch("whatsapp_desk.notifications.WebKit")
     @patch("whatsapp_desk.notifications.Notify")
     @patch("whatsapp_desk.notifications.time")
-    def test_debounce_rapid_messages(self, mock_notify, mock_webkit, mock_time):
+    def test_debounce_rapid_messages(self, mock_time, mock_notify, mock_webkit):
         import whatsapp_desk.notifications as nmod
         nmod.NOTIFY_AVAILABLE = True
         mock_wv = MagicMock()
