@@ -21,11 +21,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-webkit2-6.0 gir1.2-glib-2.0
+
       - name: Install test dependencies
         run: pip install pytest
 
       - name: Run tests with pytest
         run: PYTHONPATH="$PWD" python -m pytest tests/ -v
-
-      - name: Run tests with unittest (fallback)
-        run: PYTHONPATH="$PWD" python tests/run_tests.py
