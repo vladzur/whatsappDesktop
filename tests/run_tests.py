@@ -515,6 +515,379 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(WHATSAPP_URL, "https://web.whatsapp.com/")
 
 
+# ── Test UrlHandler RESPONSE decisions ──────────────────────────────
+
+class TestUrlHandlerResponse(unittest.TestCase):
+    """Tests para decisiones de política RESPONSE (descargas)."""
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_unsupported_mime_triggers_download(self, mock_gio):
+        """MIME types no soportados por WebKit deben descargarse."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = False
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertTrue(result)
+        mock_decision.download.assert_called_once()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_binary_mime_triggers_download(self, mock_gio):
+        """MIME types binarios (application/pdf) deben descargarse aunque WebKit los soporte."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "application/pdf"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertTrue(result)
+        mock_decision.download.assert_called_once()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_zip_mime_triggers_download(self, mock_gio):
+        """MIME types comprimidos deben descargarse."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "application/zip"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertTrue(result)
+        mock_decision.download.assert_called_once()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_html_mime_allowed_in_webview(self, mock_gio):
+        """MIME types navegables (text/html) deben mostrarse en el WebView."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "text/html"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertFalse(result)
+        mock_decision.download.assert_not_called()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_audio_mime_allowed_in_webview(self, mock_gio):
+        """MIME types de audio deben reproducirse en el WebView."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "audio/mpeg"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertFalse(result)
+        mock_decision.download.assert_not_called()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_video_mime_allowed_in_webview(self, mock_gio):
+        """MIME types de video deben reproducirse en el WebView."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "video/mp4"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertFalse(result)
+        mock_decision.download.assert_not_called()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_svg_image_allowed_in_webview(self, mock_gio):
+        """MIME types SVG deben renderizarse en el WebView."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = "image/svg+xml"
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertFalse(result)
+        mock_decision.download.assert_not_called()
+
+    @patch("whatsapp_desk.url_handler.Gio")
+    def test_none_mime_triggers_download(self, mock_gio):
+        """Si get_mime_type retorna None, se fuerza descarga como binario."""
+        from whatsapp_desk.url_handler import UrlHandler
+        from gi.repository import WebKit
+
+        handler = UrlHandler(MagicMock())
+        mock_decision = MagicMock()
+        mock_decision.is_mime_type_supported.return_value = True
+        mock_response = MagicMock()
+        mock_response.get_mime_type.return_value = None
+        mock_decision.get_response.return_value = mock_response
+
+        result = handler._on_decide_policy(
+            None, mock_decision, WebKit.PolicyDecisionType.RESPONSE
+        )
+        self.assertTrue(result)
+        mock_decision.download.assert_called_once()
+
+
+# ── Test WhatsAppWebView permissions ────────────────────────────────
+
+class TestWhatsAppWebViewPermissions(unittest.TestCase):
+    """Tests para manejo de permisos del WebView (micrófono, cámara, notificaciones)."""
+
+    @staticmethod
+    def _make_wv():
+        """Crea una instancia de WhatsAppWebView sin ejecutar __init__ real."""
+        from whatsapp_desk.webview import WhatsAppWebView
+
+        wv = WhatsAppWebView.__new__(WhatsAppWebView)
+        wv.set_property = MagicMock()
+        wv.get_user_content_manager = MagicMock()
+        wv.set_settings = MagicMock()
+        wv.get_root = MagicMock()
+        return wv
+
+    @patch("whatsapp_desk.webview.Gtk")
+    @patch("whatsapp_desk.webview.GObject")
+    def test_notification_permission_auto_allowed(self, mock_gobj, mock_gtk):
+        """Permisos de notificación se conceden automáticamente."""
+        from gi.repository import WebKit
+
+        wv = self._make_wv()
+        # Usar spec con la clase real para que isinstance funcione
+        mock_request = MagicMock(spec=WebKit.NotificationPermissionRequest)
+
+        result = wv._on_permission_request(wv, mock_request)
+        self.assertTrue(result)
+        mock_request.allow.assert_called_once()
+
+    @patch("whatsapp_desk.webview.Gtk")
+    @patch("whatsapp_desk.webview.GObject")
+    def test_user_media_permission_shows_dialog(self, mock_gobj, mock_gtk):
+        """Permisos de micrófono/cámara muestran diálogo de confirmación."""
+        from gi.repository import WebKit
+
+        wv = self._make_wv()
+        mock_request = MagicMock(spec=WebKit.UserMediaPermissionRequest)
+
+        result = wv._on_permission_request(wv, mock_request)
+        self.assertTrue(result)
+        mock_dialog = mock_gtk.AlertDialog.return_value
+        mock_dialog.choose.assert_called_once()
+
+    @patch("whatsapp_desk.webview.Gtk")
+    @patch("whatsapp_desk.webview.GObject")
+    def test_device_info_permission_shows_dialog(self, mock_gobj, mock_gtk):
+        """Permisos de DeviceInfo también muestran diálogo de confirmación."""
+        from gi.repository import WebKit
+
+        wv = self._make_wv()
+        mock_request = MagicMock(spec=WebKit.DeviceInfoPermissionRequest)
+
+        result = wv._on_permission_request(wv, mock_request)
+        self.assertTrue(result)
+        mock_dialog = mock_gtk.AlertDialog.return_value
+        mock_dialog.choose.assert_called_once()
+
+    @patch("whatsapp_desk.webview.Gtk")
+    @patch("whatsapp_desk.webview.GObject")
+    def test_unknown_permission_denied(self, mock_gobj, mock_gtk):
+        """Permisos no reconocidos se deniegan por defecto."""
+        wv = self._make_wv()
+        mock_request = MagicMock()
+
+        result = wv._on_permission_request(wv, mock_request)
+        self.assertTrue(result)
+        mock_request.deny.assert_called_once()
+
+
+# ── Test DownloadManager ────────────────────────────────────────────
+
+class TestDownloadManager(unittest.TestCase):
+    """Tests para el gestor de descargas."""
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_init_connects_download_started_signal(self, mock_glib):
+        """Al inicializar, conecta la señal download-started de NetworkSession."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        DownloadManager(mock_session, mock_window)
+        mock_session.connect.assert_called_once_with(
+            "download-started", mock_session.connect.call_args[0][1]
+        )
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_on_download_started_connects_signals(self, mock_glib):
+        """Al iniciar descarga, conecta señales decide-destination, finished, failed y progress."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+
+        mock_download = MagicMock()
+        dm._on_download_started(mock_session, mock_download)
+
+        # Verificar que conectó las 4 señales esperadas
+        connected_signals = {call[0][0] for call in mock_download.connect.call_args_list}
+        expected = {
+            "decide-destination",
+            "finished",
+            "failed",
+            "notify::estimated-progress",
+        }
+        self.assertEqual(connected_signals, expected)
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_failed_with_cancel_code_shows_no_alert(self, mock_glib):
+        """Descarga cancelada por el usuario (código 400) no muestra alerta."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+        dm._restore_title = MagicMock()
+
+        mock_download = MagicMock()
+        mock_error = MagicMock()
+        mock_error.code = 400  # Código de cancelación del usuario
+
+        dm._on_download_failed(mock_download, mock_error)
+        dm._restore_title.assert_called_once()
+        # El download debe ser removido del diccionario activo
+        self.assertNotIn(mock_download, dm._active_downloads)
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_failed_with_other_error_shows_alert(self, mock_glib):
+        """Error distinto de cancelación muestra AlertDialog."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+        dm._restore_title = MagicMock()
+
+        mock_download = MagicMock()
+        mock_error = MagicMock()
+        mock_error.code = 1  # Error real (ej: network error)
+
+        # El AlertDialog se crea con Gtk.AlertDialog(), que viene del módulo
+        with patch("whatsapp_desk.download_manager.Gtk") as mock_gtk:
+            dm._on_download_failed(mock_download, mock_error)
+
+        mock_alert = mock_gtk.AlertDialog.return_value
+        mock_alert.set_message.assert_called_once_with("Error al descargar")
+        mock_alert.show.assert_called_once_with(mock_window)
+        dm._restore_title.assert_called_once()
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_finished_restores_title_and_notifies(self, mock_glib):
+        """Al finalizar descarga, restaura título y muestra notificación de éxito."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+
+        mock_download = MagicMock()
+        dm._active_downloads[mock_download] = "/tmp/archivo.pdf"
+
+        with patch("whatsapp_desk.download_manager.Gtk") as mock_gtk:
+            dm._on_download_finished(mock_download)
+
+        # Verificar que se limpió el diccionario de descargas activas
+        self.assertNotIn(mock_download, dm._active_downloads)
+
+        # Verificar que restauró el título
+        mock_window.set_title.assert_called_with("WhatsApp Desk")
+
+        # Verificar que mostró notificación
+        mock_alert = mock_gtk.AlertDialog.return_value
+        mock_alert.set_message.assert_called_once_with("Descarga completada")
+        mock_alert.show.assert_called_once_with(mock_window)
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_progress_updates_window_title(self, mock_glib):
+        """El progreso de descarga actualiza el título de la ventana."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+
+        mock_download = MagicMock()
+        mock_download.get_estimated_progress.return_value = 0.75
+        dm._active_downloads[mock_download] = "/tmp/foto.png"
+
+        dm._on_progress_changed(mock_download, None)
+
+        mock_window.set_title.assert_called_once_with(
+            "WhatsApp Desk — foto.png (75%)"
+        )
+
+    @patch("whatsapp_desk.download_manager.GLib")
+    def test_restore_title_only_when_no_active_downloads(self, mock_glib):
+        """El título solo se restaura cuando no hay descargas activas pendientes."""
+        from whatsapp_desk.download_manager import DownloadManager
+
+        mock_session = MagicMock()
+        mock_window = MagicMock()
+        dm = DownloadManager(mock_session, mock_window)
+
+        # Simular que aún hay una descarga activa
+        mock_download_1 = MagicMock()
+        mock_download_2 = MagicMock()
+        dm._active_downloads[mock_download_1] = "/tmp/a.pdf"
+        dm._active_downloads[mock_download_2] = "/tmp/b.pdf"
+
+        # Finalizar solo una
+        dm._on_download_failed(mock_download_1, MagicMock(code=400))
+        # El título no debe restaurarse porque aún hay descargas activas
+        mock_window.set_title.assert_not_called()
+
+
 # ── Main ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
