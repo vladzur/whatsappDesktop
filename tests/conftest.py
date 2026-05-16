@@ -1,19 +1,10 @@
 """Fixtures compartidos para los tests de WhatsApp Desk."""
 
-import sys
 import os
 import json
 import tempfile
 from unittest.mock import MagicMock, patch
 import pytest
-
-# Mockear gi a nivel de módulo para que los imports de whatsapp_desk
-# no fallen en entornos sin PyGObject (CI, GitHub Actions).
-# Esto debe ejecutarse antes que pytest importe los módulos de test.
-_mock_gi = MagicMock()
-_mock_gi.require_version = MagicMock()
-_mock_gi.repository = MagicMock()
-sys.modules["gi"] = _mock_gi
 
 
 @pytest.fixture
