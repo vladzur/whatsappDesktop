@@ -6,7 +6,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
-from gi.repository import GObject, WebKit, GLib  # noqa: E402
+from gi.repository import GObject, WebKit  # noqa: E402
 
 from whatsapp_desk.constants import DATA_HOME
 
@@ -46,23 +46,10 @@ class WebViewManager:
 
     def clear_session(self):
         """Elimina todos los datos de sesión (cookies, localStorage, caché)."""
-        if self._network_session is not None:
-            # Forzar escritura de datos pendientes antes de eliminar
-            mgr = WebKit.WebsiteDataManager()
-            try:
-                # time_span=0 limpia todos los datos sin filtrar por fecha
-                mgr.clear(
-                    WebKit.WebsiteDataTypes.ALL,
-                    0,
-                    None,
-                    None,
-                    None,
-                )
-            except Exception:
-                pass
-        # Eliminar directorios
+        # Eliminar la sesión de red actual — los directorios se recrean
+        # al llamar get_network_session() de nuevo.
+        self._network_session = None
         for d in (self._data_dir, self._cache_dir):
             if os.path.exists(d):
                 shutil.rmtree(d)
-        self._network_session = None
         self._ensure_directories()
