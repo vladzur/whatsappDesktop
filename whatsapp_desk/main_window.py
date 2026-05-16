@@ -8,7 +8,7 @@ from gi.repository import Gtk, WebKit, Gio, GObject  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
 from whatsapp_desk.url_handler import UrlHandler
-from whatsapp_desk.tray import TrayIcon
+from whatsapp_desk.status_notifier import StatusNotifierItem
 from whatsapp_desk.notifications import NotificationManager
 from whatsapp_desk.dark_mode import DarkModeManager
 from whatsapp_desk.constants import WHATSAPP_URL
@@ -108,7 +108,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._url_handler = UrlHandler(self._webview)
 
         # Bandeja del sistema
-        self._tray = TrayIcon(self._app, self)
+        self._tray = StatusNotifierItem(self._app, self)
 
         # Notificaciones de escritorio
         self._notifications = NotificationManager(self._webview, self._config)
