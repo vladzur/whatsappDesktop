@@ -446,6 +446,45 @@ class TestApplication(unittest.TestCase):
         self.assertIsNotNone(app.webview_manager)
 
 
+# ── Test MainWindow ──────────────────────────────────────────────────
+
+class TestMainWindow(unittest.TestCase):
+    def test_hide_to_tray_calls_hide(self):
+        """Verifica que hide_to_tray() oculta la ventana."""
+        from whatsapp_desk.main_window import MainWindow
+        win = MainWindow.__new__(MainWindow)
+        win.hide = MagicMock()
+        win.hide_to_tray()
+        win.hide.assert_called_once()
+
+    def test_close_request_hides_when_tray_available(self):
+        """Verifica que close-request oculta la ventana si la bandeja está disponible."""
+        from whatsapp_desk.main_window import MainWindow
+        win = MainWindow.__new__(MainWindow)
+        win._config = MagicMock()
+        win._tray = MagicMock()
+        win._config.get.return_value = True  # close_to_tray
+        win._tray.is_available.return_value = True
+        win.hide = MagicMock()
+        win.save_geometry = MagicMock()
+        result = win._on_close_request(None)
+        self.assertTrue(result)
+        win.hide.assert_called_once()
+
+    def test_close_request_closes_when_tray_unavailable(self):
+        """Verifica que close-request cierra la ventana si la bandeja no está disponible."""
+        from whatsapp_desk.main_window import MainWindow
+        win = MainWindow.__new__(MainWindow)
+        win._config = MagicMock()
+        win._tray = MagicMock()
+        win._config.get.return_value = True  # close_to_tray
+        win._tray.is_available.return_value = False
+        win.save_geometry = MagicMock()
+        result = win._on_close_request(None)
+        self.assertFalse(result)
+        win.save_geometry.assert_called_once()
+
+
 # ── Test constants ──────────────────────────────────────────────────
 
 class TestConstants(unittest.TestCase):
