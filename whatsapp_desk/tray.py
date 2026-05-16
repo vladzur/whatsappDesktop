@@ -1,18 +1,24 @@
 """Integración con la bandeja del sistema vía AyatanaAppIndicator3."""
 
+import os
 import gi
 
 TRAY_AVAILABLE = False
 
 try:
     gi.require_version("AyatanaAppIndicator3", "0.1")
-    # Verificar que la biblioteca carga correctamente
     from gi.repository import AyatanaAppIndicator3 as AppIndicator  # noqa: E402
     from gi.repository import Gio  # noqa: E402
 
     TRAY_AVAILABLE = True
 except (ValueError, ImportError, RuntimeError):
     pass
+
+# Ruta al icono SVG de la aplicación
+_ICON_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "whatsapp_desk.svg",
+)
 
 
 class TrayIcon:
@@ -34,9 +40,10 @@ class TrayIcon:
     def _create_indicator(self):
         """Crea el indicador AppIndicator y su menú."""
         try:
+            icon_name = _ICON_PATH if os.path.isfile(_ICON_PATH) else "whatsapp-desk"
             self._indicator = AppIndicator.Indicator.new(
                 "whatsapp-desk",
-                "whatsapp-desk-symbolic",
+                icon_name,
                 AppIndicator.IndicatorCategory.APPLICATION_STATUS,
             )
             self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
