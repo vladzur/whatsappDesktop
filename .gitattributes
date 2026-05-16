@@ -1,0 +1,12 @@
+# Forzar LF (Unix) en todos los archivos de texto del repositorio
+# para evitar problemas con Makefile en Linux.
+* text=auto eol=lf
+
+# Los scripts Bash y el Makefile DEBEN tener LF obligatoriamente
+*.sh        text eol=lf
+Makefile    text eol=lf
+
+# Archivos binarios: sin conversión
+*.svg       binary
+*.png       binary
+*.ico       binary
