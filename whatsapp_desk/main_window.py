@@ -4,7 +4,8 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
-from gi.repository import Gtk, WebKit, Gio, GObject  # noqa: E402
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gtk, Gdk, WebKit, Gio, GObject  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
 from whatsapp_desk.url_handler import UrlHandler
@@ -34,6 +35,18 @@ class MainWindow(Gtk.ApplicationWindow):
     def _setup_window(self):
         """Configura propiedades básicas de la ventana."""
         self.set_title("WhatsApp Desk")
+
+        # Agregar directorio de iconos del usuario al tema
+        import os
+        icon_base = os.path.join(
+            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
+            "icons",
+        )
+        display = Gdk.Display.get_default()
+        if display:
+            theme = Gtk.IconTheme.get_for_display(display)
+            theme.add_search_path(icon_base)
+
         self.set_icon_name("whatsapp-desk")
         self.set_default_size(
             self._config.get("window_width"),
