@@ -5,7 +5,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gtk, Gdk, WebKit, Gio, GObject  # noqa: E402
+from gi.repository import Gtk, Gdk, WebKit, Gio  # noqa: E402
 
 from whatsapp_desk.webview import WhatsAppWebView
 from whatsapp_desk.url_handler import UrlHandler
@@ -200,6 +200,15 @@ class MainWindow(Gtk.ApplicationWindow):
             self._spinner.stop()
             self._spinner.set_visible(False)
 
+    def _on_crash_dialog_response(self, dialog, result, _user_data):
+        """Maneja la respuesta del diálogo de crash del WebView."""
+        try:
+            button = dialog.choose_finish(result)
+            if button == 0:  # "Recargar"
+                self._webview.reload()
+        except Exception:
+            pass
+
     def _on_title_changed(self, webview, param):
         """Actualiza el título de la ventana cuando cambia el título de la página."""
         title = webview.get_property("title")
@@ -218,7 +227,7 @@ class MainWindow(Gtk.ApplicationWindow):
             dialog.set_buttons(["Recargar", "Cancelar"])
             dialog.set_default_button(0)
             dialog.set_cancel_button(1)
-            dialog.show(self)
+            dialog.choose(self, None, self._on_crash_dialog_response, None)
 
     # ── Callbacks de acciones ─────────────────────────────────────────────
 
