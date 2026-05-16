@@ -238,6 +238,14 @@ class TestUrlHandler(unittest.TestCase):
         self.assertTrue(handler._is_whatsapp_url("https://whatsapp.com/"))
 
     @patch("whatsapp_desk.url_handler.Gio")
+    def test_whatsapp_net_allowed(self, mock_gio):
+        from whatsapp_desk.url_handler import UrlHandler
+        handler = UrlHandler(MagicMock())
+        self.assertTrue(handler._is_whatsapp_url("https://flows.whatsapp.net/cache_management/"))
+        self.assertTrue(handler._is_whatsapp_url("https://whatsapp.net/"))
+        self.assertTrue(handler._is_whatsapp_url("https://www.whatsapp.net/"))
+
+    @patch("whatsapp_desk.url_handler.Gio")
     def test_external_url_blocked(self, mock_gio):
         from whatsapp_desk.url_handler import UrlHandler
         handler = UrlHandler(MagicMock())
