@@ -25,10 +25,14 @@ class WhatsAppWebView(WebKit.WebView):
         if network_session is not None:
             kwargs["network_session"] = network_session
         super().__init__(**kwargs)
+        self._notification_manager = None
         self._setup_settings()
         self._inject_browser_spoof()
         # Manejar solicitudes de permisos (micrófono, cámara, notificaciones)
         self.connect("permission-request", self._on_permission_request)
+        # Notificaciones nativas: WhatsApp Web usa la Notifications API del
+        # navegador. WebKit emite show-notification cuando eso ocurre.
+        self.connect("show-notification", self._on_show_notification)
 
     def _setup_settings(self):
         """Configura los ajustes del WebView para WhatsApp Web."""
@@ -138,6 +142,26 @@ class WhatsAppWebView(WebKit.WebView):
             WebKit.UserScriptInjectionTime.START,
         )
         user_content.add_script(user_script)
+
+    # ── Notificaciones nativas ───────────────────────────────────────────
+
+    def set_notification_manager(self, manager):
+        """Registra el NotificationManager que procesará las notificaciones.
+
+        Debe llamarse desde MainWindow después de crear ambos objetos.
+        """
+        self._notification_manager = manager
+
+    def _on_show_notification(self, webview, notification) -> bool:
+        """Callback de la señal show-notification de WebKit.
+
+        Se dispara cuando WhatsApp Web llama a ``new Notification(title, opts)``.
+        Delegamos al NotificationManager y retornamos True para indicarle a
+        WebKit que nosotros manejamos la notificación (no debe intentarlo él).
+        """
+        if self._notification_manager is not None:
+            return self._notification_manager.handle_webkit_notification(notification)
+        return False
 
     # ── Permisos ──────────────────────────────────────────────────────────
 
