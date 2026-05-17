@@ -121,7 +121,14 @@ class MainWindow(Gtk.ApplicationWindow):
         self._tray = StatusNotifierItem(self._app, self)
 
         # Notificaciones de escritorio
-        self._notifications = NotificationManager(self._webview, self._config)
+        # on_new_message conecta el contador de mensajes sin leer con el badge
+        # del tray. count=0 limpia el badge, count>0 lo activa.
+        self._notifications = NotificationManager(
+            self._config,
+            on_new_message=self._on_new_message,
+        )
+        # Registrar el manager en el WebView para recibir show-notification
+        self._webview.set_notification_manager(self._notifications)
 
         # Modo oscuro
         self._dark_mode = DarkModeManager(self._webview, self._config)
@@ -195,6 +202,10 @@ class MainWindow(Gtk.ApplicationWindow):
         elif load_event == WebKit.LoadEvent.FINISHED:
             self._spinner.stop()
             self._spinner.set_visible(False)
+            # Al terminar de cargar la página limpiamos el badge si la
+            # ventana está visible (el usuario ya está viendo el chat).
+            if self.is_visible():
+                self._clear_badge()
 
     def _on_crash_dialog_response(self, dialog, result, _user_data):
         """Maneja la respuesta del diálogo de crash del WebView."""
@@ -224,6 +235,25 @@ class MainWindow(Gtk.ApplicationWindow):
             dialog.set_default_button(0)
             dialog.set_cancel_button(1)
             dialog.choose(self, None, self._on_crash_dialog_response, None)
+
+    # ── Callbacks de notificaciones y badge ─────────────────────────────
+
+    def _on_new_message(self, count: int):
+        """Callback invocado por NotificationManager cuando cambia el conteo.
+
+        Actualiza el badge del icono de bandeja. Si la ventana está visible
+        el usuario ya está viendo los mensajes, así que no marcamos badge.
+        """
+        if self.is_visible():
+            # Ventana abierta → el usuario ve los mensajes → limpiar badge
+            self._tray.clear_unread()
+        else:
+            self._tray.set_unread(count)
+
+    def _clear_badge(self):
+        """Limpia el badge del tray y resetea el contador de no leídos."""
+        self._tray.clear_unread()
+        self._notifications.reset_unread()
 
     # ── Callbacks de acciones ─────────────────────────────────────────────
 
@@ -295,6 +325,12 @@ class MainWindow(Gtk.ApplicationWindow):
         """Oculta la ventana al área de notificación."""
         self.hide()
 
+    def present(self, *args, **kwargs):
+        """Muestra la ventana y limpia el badge de mensajes sin leer."""
+        super().present(*args, **kwargs)
+        # Al traer la ventana al frente el usuario verá los mensajes → limpiar badge
+        self._clear_badge()
+
     def replace_webview(self):
         """Recrea el WebView con una nueva sesión de red (útil tras clear_session)."""
         # Eliminar WebView antiguo
@@ -314,8 +350,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._url_handler = UrlHandler(self._webview)
         self._download_manager = DownloadManager(network_session, self)
 
-        # Recrear notificaciones
-        self._notifications = NotificationManager(self._webview, self._config)
+        # Recrear notificaciones con el mismo callback al tray
+        self._notifications = NotificationManager(
+            self._config,
+            on_new_message=self._on_new_message,
+        )
+        self._webview.set_notification_manager(self._notifications)
 
         # Establecer en el overlay y cargar
         self._overlay.set_child(self._webview)
