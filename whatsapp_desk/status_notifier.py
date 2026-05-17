@@ -5,6 +5,12 @@ con nuestra aplicación GTK4. Usa Gio.DBusConnection para registrar
 un StatusNotifierItem en la bandeja del sistema.
 
 Protocolo: org.kde.StatusNotifierItem (freedesktop.org)
+
+Badge de mensajes no leídos
+---------------------------
+Cuando hay mensajes sin leer se cambia ``IconName`` al icono
+``whatsapp-desk-unread-symbolic`` y se emite la señal D-Bus ``NewIcon``.
+Ese icono se genera en tiempo de ejecución (SVG inline) la primera vez.
 """
 
 import os
@@ -28,6 +34,27 @@ _XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")
 _ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons")
 _ICON_INSTALL_DIR = os.path.join(_XDG_DATA, "icons", "hicolor", "scalable", "apps")
 _ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
+_ICON_UNREAD_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-unread-symbolic.svg")
+
+# Nombre de los iconos (sin ruta ni extensión — protocolo SNI los resuelve por nombre)
+_ICON_NORMAL = "whatsapp-desk-symbolic"
+_ICON_UNREAD = "whatsapp-desk-unread-symbolic"
+
+# SVG del icono con badge: mismo diseño base + círculo de notificación verde
+_ICON_UNREAD_SVG = """\
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Burbuja de chat con forma de teléfono — diseño symbolic monocromático -->
+  <!-- NOTA: usa currentColor para que se adapte al tema del panel de GNOME -->
+  <g fill="currentColor">
+    <!-- Cuerpo del teléfono/burbuja -->
+    <path d="M1 2 L1 12 C1 13.1 1.9 14 3 14 L10 14 L12 16 L12 14 L13 14 C14.1 14 15 13.1 15 12 L15 2 C15 0.9 14.1 0 13 0 L3 0 C1.9 0 1 0.9 1 2 Z"/>
+    <!-- Auricular del teléfono -->
+    <path d="M5 5 C5 5 4.5 6 5.5 7.5 C6.5 9 7.5 9.5 7.5 9.5 C7.5 9.5 6 11 6.5 12 C7 13 8.5 13 9.5 11.5 C10.5 10 10 8 8.5 7 C7 6 5 5 5 5 Z" opacity="0.5"/>
+  </g>
+  <!-- Badge de notificación: círculo rojo en la esquina superior derecha -->
+  <circle cx="13" cy="3" r="3" fill="#e74c3c" stroke="none"/>
+</svg>
+"""
 
 # XML de introspección D-Bus para org.kde.StatusNotifierItem
 SNI_INTROSPECTION_XML = """
@@ -88,6 +115,17 @@ def _ensure_symbolic_icon_installed():
         pass
 
 
+def _ensure_unread_icon_installed():
+    """Crea el icono con badge de notificación si no existe."""
+    try:
+        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        if not os.path.isfile(_ICON_UNREAD_PATH):
+            with open(_ICON_UNREAD_PATH, "w", encoding="utf-8") as f:
+                f.write(_ICON_UNREAD_SVG)
+    except OSError:
+        pass
+
+
 def _pid():
     return os.getpid()
 
@@ -101,6 +139,11 @@ class StatusNotifierItem:
 
     Registra un objeto D-Bus que implementa org.kde.StatusNotifierItem.
     Compatible con la extensión de GNOME Shell AppIndicator Support.
+
+    Badge de mensajes no leídos
+    ---------------------------
+    Llama a ``set_unread(count)`` para mostrar el icono de alerta y a
+    ``clear_unread()`` cuando el usuario abre la ventana.
     """
 
     def __init__(self, application, window):
@@ -109,8 +152,10 @@ class StatusNotifierItem:
         self._connection = None
         self._owner_id = 0
         self._registered = False
+        self._current_icon = _ICON_NORMAL   # nombre de icono activo
 
         _ensure_symbolic_icon_installed()
+        _ensure_unread_icon_installed()
         self._init_dbus()
 
     def _init_dbus(self):
@@ -213,10 +258,9 @@ class StatusNotifierItem:
             "Title": GLib.Variant("s", "WhatsApp Desk"),
             "Status": GLib.Variant("s", "Active"),
             "WindowId": GLib.Variant("i", 0),
-            # IconName debe ser el nombre del icono (sin ruta ni extensión),
-            # NO la ruta completa. El protocolo SNI resuelve el icono por nombre
-            # usando IconThemePath como directorio de búsqueda.
-            "IconName": GLib.Variant("s", "whatsapp-desk-symbolic"),
+            # IconName se sirve dinámicamente desde self._current_icon
+            # para reflejar el estado de mensajes no leídos.
+            "IconName": GLib.Variant("s", self._current_icon),
             "IconThemePath": GLib.Variant("s", _ICON_THEME_DIR),
             "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
@@ -262,6 +306,48 @@ class StatusNotifierItem:
     def show_window(self):
         """Muestra la ventana principal."""
         GLib.idle_add(self._window.present)
+
+    # ── Badge de mensajes no leídos ──────────────────────────────────────
+
+    def set_unread(self, count: int):
+        """Cambia el icono al estado 'con badge' cuando hay mensajes sin leer.
+
+        Parameters
+        ----------
+        count:
+            Número de mensajes sin leer. Si es 0 se llama a ``clear_unread``.
+        """
+        if count <= 0:
+            self.clear_unread()
+            return
+        if self._current_icon == _ICON_UNREAD:
+            return  # ya está en estado de badge — evitar señales redundantes
+        self._current_icon = _ICON_UNREAD
+        self._emit_new_icon()
+
+    def clear_unread(self):
+        """Restaura el icono al estado normal (sin badge)."""
+        if self._current_icon == _ICON_NORMAL:
+            return  # ya en estado normal
+        self._current_icon = _ICON_NORMAL
+        self._emit_new_icon()
+
+    def _emit_new_icon(self):
+        """Emite la señal D-Bus NewIcon para que appindicatorsupport recargue el icono."""
+        if not self._registered or self._connection is None:
+            return
+        try:
+            self._connection.emit_signal(
+                None,
+                SNI_PATH,
+                "org.kde.StatusNotifierItem",
+                "NewIcon",
+                None,
+            )
+        except Exception as exc:
+            print(f"[SNI] Error al emitir NewIcon: {exc}")
+
+    # ── Estado ────────────────────────────────────────────────────────────
 
     def is_available(self) -> bool:
         """Indica si el icono de bandeja está registrado."""

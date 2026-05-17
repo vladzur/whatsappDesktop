@@ -272,19 +272,31 @@ class TestUrlHandler(unittest.TestCase):
         self.assertFalse(result)
 
 
+# ── Helpers para tests de bandeja y notificaciones ───────────────────
+
+def _make_fake_notification(title="Nuevo mensaje", body="Juan: Hola"):
+    """Crea un mock de WebKit.Notification con título y cuerpo."""
+    notif = MagicMock()
+    notif.get_title.return_value = title
+    notif.get_body.return_value = body
+    return notif
+
+
 # ── Test StatusNotifierItem ───────────────────────────────────────────
 
 class TestStatusNotifierItem(unittest.TestCase):
     @staticmethod
-    def _make_sni(registered=False):
+    def _make_sni(registered=False, current_icon=None):
         """Crea una instancia de StatusNotifierItem sin inicializar D-Bus."""
-        from whatsapp_desk.status_notifier import StatusNotifierItem
+        from whatsapp_desk.status_notifier import (
+            StatusNotifierItem, _ICON_NORMAL, _ICON_UNREAD,
+        )
         sni = StatusNotifierItem.__new__(StatusNotifierItem)
         sni._app = MagicMock()
         sni._window = MagicMock()
         sni._connection = None
         sni._registered = registered
-        sni._menu_node_id = None
+        sni._current_icon = current_icon or _ICON_NORMAL
         return sni
 
     def test_not_available_when_not_registered(self):
@@ -316,89 +328,198 @@ class TestStatusNotifierItem(unittest.TestCase):
         sni.toggle_window()
         sni._window.present.assert_called_once()
 
+    # ── Badge de mensajes no leídos ──────────────────────────────────
+
+    def test_set_unread_changes_icon(self):
+        """set_unread con count > 0 debe cambiar al icono de badge."""
+        from whatsapp_desk.status_notifier import _ICON_UNREAD
+
+        sni = self._make_sni()
+        sni._emit_new_icon = MagicMock()
+        sni.set_unread(3)
+        self.assertEqual(sni._current_icon, _ICON_UNREAD)
+
+    def test_set_unread_zero_delegates_to_clear(self):
+        """set_unread(0) debe delegar en clear_unread()."""
+        sni = self._make_sni(current_icon=None)  # se asigna _ICON_UNREAD
+        from whatsapp_desk.status_notifier import _ICON_UNREAD
+        sni._current_icon = _ICON_UNREAD
+        sni.clear_unread = MagicMock()
+        sni.set_unread(0)
+        sni.clear_unread.assert_called_once()
+
+    def test_clear_unread_restores_icon(self):
+        """clear_unread debe volver al icono normal."""
+        from whatsapp_desk.status_notifier import _ICON_NORMAL, _ICON_UNREAD
+
+        sni = self._make_sni(current_icon=_ICON_UNREAD)
+        sni._emit_new_icon = MagicMock()
+        sni.clear_unread()
+        self.assertEqual(sni._current_icon, _ICON_NORMAL)
+
+    def test_set_unread_when_already_unread_is_noop(self):
+        """No debe emitir señal redundante si el icono ya es unread."""
+        from whatsapp_desk.status_notifier import _ICON_UNREAD
+
+        sni = self._make_sni(current_icon=_ICON_UNREAD)
+        sni._emit_new_icon = MagicMock()
+        sni.set_unread(5)
+        sni._emit_new_icon.assert_not_called()
+
+    def test_clear_unread_when_already_clean_is_noop(self):
+        """No debe emitir señal redundante si el icono ya está limpio."""
+        sni = self._make_sni()
+        sni._emit_new_icon = MagicMock()
+        sni.clear_unread()
+        sni._emit_new_icon.assert_not_called()
+
+    def test_emit_new_icon_sends_dbus_signal(self):
+        """_emit_new_icon debe emitir la señal NewIcon del protocolo SNI."""
+        sni = self._make_sni(registered=True)
+        sni._connection = MagicMock()
+        sni._emit_new_icon()
+        sni._connection.emit_signal.assert_called_once()
+
+    def test_emit_new_icon_skips_when_not_registered(self):
+        """No debe emitir D-Bus si no está registrado en el Watcher."""
+        sni = self._make_sni(registered=False)
+        sni._connection = MagicMock()
+        sni._emit_new_icon()
+        sni._connection.emit_signal.assert_not_called()
+
 
 # ── Test NotificationManager ────────────────────────────────────────
 
 class TestNotificationManager(unittest.TestCase):
-    @patch("whatsapp_desk.notifications.WebKit")
-    @patch("whatsapp_desk.notifications.Notify")
-    def test_registers_script_handler(self, mock_notify, mock_webkit):
+    @staticmethod
+    def _make_mgr(notifications_enabled=True, on_new_message=None):
+        """Crea un NotificationManager con dependencias mockeadas."""
         import whatsapp_desk.notifications as nmod
         nmod.NOTIFY_AVAILABLE = True
-        mock_wv = MagicMock()
+        mock_cfg = MagicMock()
+        mock_cfg.get.return_value = notifications_enabled
+        mgr = nmod.NotificationManager(mock_cfg, on_new_message=on_new_message)
+        return mgr, mock_cfg, nmod
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_init_calls_notify_init(self, mock_notify):
+        """Debe inicializar libnotify cuando está disponible."""
+        import whatsapp_desk.notifications as nmod
+        nmod.NOTIFY_AVAILABLE = True
         mock_cfg = MagicMock()
         mock_cfg.get.return_value = True
-        nmod.NotificationManager(mock_wv, mock_cfg)
-        uc = mock_wv.get_user_content_manager.return_value
-        uc.register_script_message_handler.assert_called_once_with(
-            nmod.NotificationManager.HANDLER_NAME
-        )
+        nmod.NotificationManager(mock_cfg)
+        mock_notify.init.assert_called_once_with("WhatsApp Desk")
 
-    @patch("whatsapp_desk.notifications.WebKit")
     @patch("whatsapp_desk.notifications.Notify")
-    def test_injects_javascript(self, mock_notify, mock_webkit):
-        import whatsapp_desk.notifications as nmod
-        nmod.NOTIFY_AVAILABLE = True
-        mock_wv = MagicMock()
-        mock_cfg = MagicMock()
-        mock_cfg.get.return_value = True
-        nmod.NotificationManager(mock_wv, mock_cfg)
-        mock_wv.inject_javascript.assert_called_once()
+    def test_init_starts_with_zero_count(self, mock_notify):
+        """Debe inicializar el contador de no leídos en 0."""
+        mgr, _, _ = self._make_mgr()
+        self.assertEqual(mgr._unread_count, 0)
 
-    @patch("whatsapp_desk.notifications.WebKit")
     @patch("whatsapp_desk.notifications.Notify")
-    def test_no_notification_when_disabled(self, mock_notify, mock_webkit):
-        import whatsapp_desk.notifications as nmod
-        nmod.NOTIFY_AVAILABLE = True
-        mock_wv = MagicMock()
-        mock_cfg = MagicMock()
-        mock_cfg.get.side_effect = lambda k, d=None: (
-            False if k == "notifications_enabled" else d
-        )
-        mgr = nmod.NotificationManager(mock_wv, mock_cfg)
-        mock_js = MagicMock()
-        mock_val = MagicMock()
-        mock_val.to_string.return_value = '{"count": 1}'
-        mock_js.get_js_value.return_value = mock_val
-        mgr._on_message_received(None, mock_js)
+    def test_handle_notification_shows_libnotify(self, mock_notify):
+        """Debe mostrar una burbuja de escritorio vía libnotify."""
+        mgr, _, _ = self._make_mgr()
+        notif = _make_fake_notification(title="Título", body="Cuerpo")
+        result = mgr.handle_webkit_notification(notif)
+        self.assertTrue(result)
+        mock_notify.Notification.new.assert_called_once()
+        mock_notify.Notification.new.return_value.show.assert_called_once()
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_handle_notification_returns_true_when_disabled(self, mock_notify):
+        """Debe retornar True aunque las notificaciones estén desactivadas."""
+        mgr, _, _ = self._make_mgr(notifications_enabled=False)
+        notif = _make_fake_notification()
+        result = mgr.handle_webkit_notification(notif)
+        self.assertTrue(result)
         mock_notify.Notification.new.assert_not_called()
 
-    @patch("whatsapp_desk.notifications.WebKit")
     @patch("whatsapp_desk.notifications.Notify")
-    @patch("whatsapp_desk.notifications.time")
-    def test_debounce_rapid_messages(self, mock_time, mock_notify, mock_webkit):
+    def test_handle_notification_increments_count(self, mock_notify):
+        """Debe incrementar el contador de mensajes no leídos."""
+        mgr, _, _ = self._make_mgr()
+        mgr.handle_webkit_notification(_make_fake_notification())
+        self.assertEqual(mgr._unread_count, 1)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        self.assertEqual(mgr._unread_count, 2)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_handle_notification_calls_callback(self, mock_notify):
+        """Debe invocar on_new_message con el conteo actualizado."""
+        cb = MagicMock()
+        mgr, _, _ = self._make_mgr(on_new_message=cb)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        cb.assert_called_with(1)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        cb.assert_called_with(2)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_debounce_prevents_duplicate_popups(self, mock_notify):
+        """No debe mostrar burbuja duplicada en rápida sucesión."""
+        mgr, _, _ = self._make_mgr()
+        mgr.handle_webkit_notification(_make_fake_notification())
+        self.assertEqual(mock_notify.Notification.new.call_count, 1)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        self.assertEqual(mock_notify.Notification.new.call_count, 1)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_debounce_still_counts(self, mock_notify):
+        """Aunque se omita la burbuja por debounce, el conteo debe subir."""
+        mgr, _, _ = self._make_mgr()
+        mgr.handle_webkit_notification(_make_fake_notification())
+        mgr.handle_webkit_notification(_make_fake_notification())
+        self.assertEqual(mgr._unread_count, 2)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_reset_unread_zeroes_count(self, mock_notify):
+        """reset_unread() debe reiniciar el contador a 0."""
+        mgr, _, _ = self._make_mgr()
+        mgr.handle_webkit_notification(_make_fake_notification())
+        mgr.handle_webkit_notification(_make_fake_notification())
+        mgr.reset_unread()
+        self.assertEqual(mgr._unread_count, 0)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_reset_unread_calls_callback_with_zero(self, mock_notify):
+        """reset_unread() debe invocar on_new_message con 0."""
+        cb = MagicMock()
+        mgr, _, _ = self._make_mgr(on_new_message=cb)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        mgr.reset_unread()
+        cb.assert_called_with(0)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_reset_unread_without_callback_does_not_crash(self, mock_notify):
+        """reset_unread() no debe fallar si no hay callback registrado."""
+        mgr, _, _ = self._make_mgr(on_new_message=None)
+        mgr.handle_webkit_notification(_make_fake_notification())
+        mgr.reset_unread()
+        self.assertEqual(mgr._unread_count, 0)
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_handle_notification_falls_back_to_defaults(self, mock_notify):
+        """Debe usar valores por defecto si título o cuerpo están vacíos."""
+        mgr, _, _ = self._make_mgr()
+        notif = _make_fake_notification(title="", body="")
+        mgr.handle_webkit_notification(notif)
+        mock_notify.Notification.new.assert_called_once_with(
+            "WhatsApp Desk", "Tienes un nuevo mensaje", "whatsapp-desk-symbolic"
+        )
+
+    @patch("whatsapp_desk.notifications.Notify")
+    def test_notify_unavailable_does_not_crash(self, mock_notify):
+        """No debe fallar cuando libnotify no está instalado."""
         import whatsapp_desk.notifications as nmod
-        nmod.NOTIFY_AVAILABLE = True
-        mock_wv = MagicMock()
+        nmod.NOTIFY_AVAILABLE = False
         mock_cfg = MagicMock()
         mock_cfg.get.return_value = True
-
-        # Configurar time.time() para devolver valores controlados
-        call_count = [0]
-
-        def fake_time():
-            call_count[0] += 1
-            if call_count[0] <= 2:
-                # __init__ asigna _last_notification_time con el valor 0 real,
-                # así que time.time solo se llama en _on_message_received
-                return 100.0
-            return 100.5
-
-        mock_time.time = fake_time
-
-        # Forzar _last_notification_time a 0 (ya está en 0 por defecto)
-        mgr = nmod.NotificationManager(mock_wv, mock_cfg)
-
-        mock_js = MagicMock()
-        mock_val = MagicMock()
-        mock_val.to_string.return_value = '{"count": 1}'
-        mock_js.get_js_value.return_value = mock_val
-
-        mgr._on_message_received(None, mock_js)
-        self.assertEqual(mock_notify.Notification.new.call_count, 1)
-
-        mgr._on_message_received(None, mock_js)
-        self.assertEqual(mock_notify.Notification.new.call_count, 1)
+        mgr = nmod.NotificationManager(mock_cfg)
+        notif = _make_fake_notification()
+        result = mgr.handle_webkit_notification(notif)
+        self.assertTrue(result)
+        self.assertEqual(mgr._unread_count, 1)
 
 
 # ── Test DarkModeManager ────────────────────────────────────────────
