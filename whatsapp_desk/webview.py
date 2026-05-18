@@ -132,6 +132,46 @@ class WhatsAppWebView(WebKit.WebView):
                 get: function() { return ['es-ES', 'es', 'en-US', 'en']; },
                 configurable: true
             });
+
+            // ── Notifications API ──────────────────────────────────────────
+            // WhatsApp Web comprueba Notification.permission al arrancar.
+            // Si no es 'granted' deja de usar la API y no llama nunca a
+            // new Notification(), por lo que WebKit nunca emite show-notification.
+            // Sobreescribimos la clase para que el permiso siempre sea 'granted'
+            // y requestPermission() resuelva de forma inmediata.
+            if (typeof Notification !== 'undefined') {
+                // Guardar el constructor original por si se necesita internamente
+                const _OriginalNotification = Notification;
+
+                // Redefinir la clase Notification
+                class PatchedNotification extends _OriginalNotification {
+                    constructor(title, options) {
+                        super(title, options);
+                    }
+                }
+
+                // Propiedad estática: permission = 'granted'
+                Object.defineProperty(PatchedNotification, 'permission', {
+                    get: function() { return 'granted'; },
+                    configurable: true
+                });
+
+                // requestPermission siempre resuelve con 'granted'
+                PatchedNotification.requestPermission = function() {
+                    return Promise.resolve('granted');
+                };
+
+                // Reemplazar el constructor global
+                try {
+                    Object.defineProperty(window, 'Notification', {
+                        value: PatchedNotification,
+                        writable: true,
+                        configurable: true
+                    });
+                } catch(e) {
+                    window.Notification = PatchedNotification;
+                }
+            }
         })();
         """ % CHROME_USER_AGENT
 
