@@ -11,7 +11,7 @@
 # Requisitos:
 #   - flatpak >= 1.14
 #   - flatpak-builder
-#   - Runtime GNOME 47 (se instala automáticamente si no está)
+#   - Runtime GNOME 49 (se instala automáticamente si no está)
 # ============================================================
 
 set -euo pipefail
@@ -23,10 +23,10 @@ OUTPUT="whatsapp-desk.flatpak"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "==> Verificando runtime GNOME 47..."
-flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*47" || {
-    echo "    Instalando runtime GNOME 47 (esto puede tomar unos minutos)..."
-    flatpak install --user -y flathub org.gnome.Platform/x86_64/47 org.gnome.Sdk/x86_64/47
+echo "==> Verificando runtime GNOME 49..."
+flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*49" || {
+    echo "    Instalando runtime GNOME 49 (esto puede tomar unos minutos)..."
+    flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
 }
 
 cd "$PROJECT_DIR"
