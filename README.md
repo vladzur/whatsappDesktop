@@ -91,6 +91,76 @@ rm -rf ~/.local/share/whatsapp-desk ~/.config/whatsapp-desk
 
 ---
 
+## Empaquetado Flatpak
+
+Para distribuir la aplicación a otros equipos sin necesidad de instalar dependencias manualmente.
+
+### Requisitos
+
+```bash
+# Ubuntu / Debian
+sudo apt install flatpak flatpak-builder
+
+# Añadir Flathub (si no está configurado)
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+```
+
+El script de build instala automáticamente el runtime `org.gnome.Platform/x86_64/49` si no está presente.
+
+### Construir e instalar localmente
+
+```bash
+./build-aux/build.sh
+```
+
+Esto ejecuta tres pasos:
+
+1. **`flatpak-builder`** — compila e instala la app en el repositorio local del usuario
+2. **`flatpak build-export`** — exporta el build al repositorio
+3. **`flatpak build-bundle`** — genera el archivo portable `whatsapp-desk.flatpak`
+
+### Probar la app sin instalar en el sistema
+
+```bash
+flatpak-builder --user --install .flatpak-build build-aux/com.vladzur.WhatsAppDesk.json
+flatpak run com.vladzur.WhatsAppDesk
+```
+
+### Instalar desde el bundle en otro equipo
+
+```bash
+flatpak install --user whatsapp-desk.flatpak
+flatpak run com.vladzur.WhatsAppDesk
+```
+
+### Desinstalar la versión Flatpak
+
+```bash
+flatpak uninstall --user com.vladzur.WhatsAppDesk
+```
+
+### Permisos del sandbox
+
+El manifiesto solicita los siguientes permisos:
+
+| Permiso | Motivo |
+|---------|--------|
+| `--socket=wayland --socket=fallback-x11` | Interfaz gráfica |
+| `--socket=pulseaudio` | Audio para notificaciones |
+| `--share=network` | Conexión a WhatsApp Web |
+| `--device=dri` | Aceleración GPU (WebKit) |
+| `--filesystem=xdg-download` | Descarga de archivos |
+| `--talk-name=org.kde.StatusNotifierWatcher` | Icono en la bandeja del sistema |
+| `--talk-name=org.freedesktop.Notifications` | Notificaciones de escritorio |
+
+### Notas sobre el icono de bandeja en Flatpak
+
+- Los iconos usan nombres RDNN (`com.vladzur.WhatsAppDesk-symbolic`) para que Flatpak los exporte correctamente al host.
+- La app detecta automáticamente si se ejecuta dentro del sandbox y adapta las respuestas D-Bus (`IconThemePath` vacío) para que GNOME Shell resuelva los iconos vía `XDG_DATA_DIRS`.
+- La extensión **AppIndicator Support** sigue siendo necesaria en el equipo anfitrión.
+
+---
+
 ## Estructura del proyecto
 
 ```
