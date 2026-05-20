@@ -1,7 +1,7 @@
 {
     "app-id": "com.vladzur.WhatsAppDesk",
     "runtime": "org.gnome.Platform",
-    "runtime-version": "47",
+    "runtime-version": "49",
     "sdk": "org.gnome.Sdk",
     "command": "whatsapp-desk",
     "finish-args": [
@@ -10,8 +10,10 @@
         "--socket=pulseaudio",
         "--share=network",
         "--share=ipc",
+        "--device=dri",
         "--filesystem=xdg-download",
         "--own-name=com.vladzur.WhatsAppDesk",
+        "--own-name=com.vladzur.WhatsAppDesk.*",
         "--talk-name=org.kde.StatusNotifierWatcher",
         "--talk-name=org.freedesktop.Notifications"
     ],
