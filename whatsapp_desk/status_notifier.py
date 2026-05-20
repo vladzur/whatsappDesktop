@@ -21,7 +21,7 @@ from gi.repository import GLib, Gio  # noqa: E402
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
-SNI_NAME_TEMPLATE = "org.kde.StatusNotifierItem-{pid}-{instance}"
+SNI_NAME_TEMPLATE = "com.vladzur.WhatsAppDesk.tray"
 SNI_PATH = "/StatusNotifierItem"
 
 # Rutas de iconos desde el módulo central de constantes
@@ -140,8 +140,8 @@ def _pid():
     return os.getpid()
 
 
-def _bus_name(instance=1):
-    return SNI_NAME_TEMPLATE.format(pid=_pid(), instance=instance)
+def _bus_name():
+    return SNI_NAME_TEMPLATE
 
 
 class StatusNotifierItem:
@@ -234,7 +234,7 @@ class StatusNotifierItem:
                 SNI_PATH,
                 "org.kde.StatusNotifierItem",
                 "NewIconThemePath",
-                GLib.Variant("(s)", (_ICON_THEME_DIR,)),
+                GLib.Variant("(s)", (ICON_THEME_DIR,)),
             )
         except Exception as exc:
             # El Watcher puede no estar disponible (escritorio sin soporte SNI)
@@ -271,7 +271,7 @@ class StatusNotifierItem:
             # IconName se sirve dinámicamente desde self._current_icon
             # para reflejar el estado de mensajes no leídos.
             "IconName": GLib.Variant("s", self._current_icon),
-            "IconThemePath": GLib.Variant("s", _ICON_THEME_DIR),
+            "IconThemePath": GLib.Variant("s", ICON_THEME_DIR),
             "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
         }
