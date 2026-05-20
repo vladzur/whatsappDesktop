@@ -36,6 +36,7 @@
                 "cp /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk.svg /app/share/icons/hicolor/scalable/apps/whatsapp-desk.svg",
                 "install -Dm644 whatsapp-desk-symbolic.svg /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk-symbolic.svg",
                 "cp /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk-symbolic.svg /app/share/icons/hicolor/scalable/apps/whatsapp-desk-symbolic.svg",
+                "bash build-aux/generate-icons.sh",
                 "sed -i 's/^Icon=.*/Icon=com.vladzur.WhatsAppDesk/' whatsapp_desk.desktop.in",
                 "install -Dm644 whatsapp_desk.desktop.in /app/share/applications/com.vladzur.WhatsAppDesk.desktop",
                 "pip3 install --no-build-isolation --no-deps --prefix=/app ."
