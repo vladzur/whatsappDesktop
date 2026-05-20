@@ -24,17 +24,17 @@ from gi.repository import GLib, Gio  # noqa: E402
 SNI_NAME_TEMPLATE = "org.kde.StatusNotifierItem-{pid}-{instance}"
 SNI_PATH = "/StatusNotifierItem"
 
-# Rutas de iconos
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_ICON_SYMBOLIC_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk-symbolic.svg")
-_XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-# appindicatorsupport espera la raíz del directorio de iconos XDG,
-# NO la subdirectamente del tema (hicolor). El sufijo /hicolor lo añade
-# internamente la extensión al buscar el icono por nombre.
-_ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons")
-_ICON_INSTALL_DIR = os.path.join(_XDG_DATA, "icons", "hicolor", "scalable", "apps")
-_ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
-_ICON_UNREAD_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-unread-symbolic.svg")
+# Rutas de iconos desde el módulo central de constantes
+from whatsapp_desk.constants import (  # noqa: E402
+    IN_FLATPAK,
+    ICON_DIR,
+    ICON_SRC_DIR,
+    ICON_THEME_DIR,
+)
+
+_ICON_SYMBOLIC_SRC = os.path.join(ICON_SRC_DIR, "whatsapp-desk-symbolic.svg")
+_ICON_SYMBOLIC_PATH = os.path.join(ICON_DIR, "whatsapp-desk-symbolic.svg")
+_ICON_UNREAD_PATH = os.path.join(ICON_DIR, "whatsapp-desk-unread-symbolic.svg")
 
 # Nombre de los iconos (sin ruta ni extensión — protocolo SNI los resuelve por nombre)
 _ICON_NORMAL = "whatsapp-desk-symbolic"
@@ -103,11 +103,16 @@ SNI_INTROSPECTION_XML = """
 
 
 def _ensure_symbolic_icon_installed():
-    """Copia el icono symbolic al directorio de iconos del usuario."""
+    """Copia el icono symbolic al directorio de iconos del usuario.
+
+    En Flatpak los iconos ya están preinstalados en /app/share/icons/.
+    """
+    if IN_FLATPAK:
+        return
     if not os.path.isfile(_ICON_SYMBOLIC_SRC):
         return
     try:
-        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        os.makedirs(ICON_DIR, exist_ok=True)
         if not os.path.isfile(_ICON_SYMBOLIC_PATH):
             import shutil
             shutil.copy2(_ICON_SYMBOLIC_SRC, _ICON_SYMBOLIC_PATH)
@@ -116,9 +121,14 @@ def _ensure_symbolic_icon_installed():
 
 
 def _ensure_unread_icon_installed():
-    """Crea el icono con badge de notificación si no existe."""
+    """Crea el icono con badge de notificación si no existe.
+
+    En Flatpak los iconos ya están preinstalados en /app/share/icons/.
+    """
+    if IN_FLATPAK:
+        return
     try:
-        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        os.makedirs(ICON_DIR, exist_ok=True)
         if not os.path.isfile(_ICON_UNREAD_PATH):
             with open(_ICON_UNREAD_PATH, "w", encoding="utf-8") as f:
                 f.write(_ICON_UNREAD_SVG)

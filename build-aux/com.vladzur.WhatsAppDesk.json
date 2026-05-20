@@ -1,0 +1,49 @@
+{
+    "app-id": "com.vladzur.WhatsAppDesk",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "47",
+    "sdk": "org.gnome.Sdk",
+    "command": "whatsapp-desk",
+    "finish-args": [
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--socket=pulseaudio",
+        "--share=network",
+        "--share=ipc",
+        "--filesystem=xdg-download",
+        "--own-name=com.vladzur.WhatsAppDesk",
+        "--talk-name=org.kde.StatusNotifierWatcher",
+        "--talk-name=org.freedesktop.Notifications"
+    ],
+    "cleanup": [
+        "/include",
+        "/lib/pkgconfig",
+        "/share/pkgconfig",
+        "/share/aclocal",
+        "/share/gtk-doc",
+        "/share/man",
+        "*.la",
+        "*.a"
+    ],
+    "modules": [
+        {
+            "name": "whatsapp-desk",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -Dm644 whatsapp-desk.svg /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk.svg",
+                "cp /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk.svg /app/share/icons/hicolor/scalable/apps/whatsapp-desk.svg",
+                "install -Dm644 whatsapp-desk-symbolic.svg /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk-symbolic.svg",
+                "cp /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk-symbolic.svg /app/share/icons/hicolor/scalable/apps/whatsapp-desk-symbolic.svg",
+                "sed -i 's/^Icon=.*/Icon=com.vladzur.WhatsAppDesk/' whatsapp_desk.desktop.in",
+                "install -Dm644 whatsapp_desk.desktop.in /app/share/applications/com.vladzur.WhatsAppDesk.desktop",
+                "pip3 install --no-build-isolation --no-deps --prefix=/app ."
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": ".."
+                }
+            ]
+        }
+    ]
+}
