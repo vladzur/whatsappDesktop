@@ -32,13 +32,18 @@ from whatsapp_desk.constants import (  # noqa: E402
     ICON_THEME_DIR,
 )
 
-_ICON_SYMBOLIC_SRC = os.path.join(ICON_SRC_DIR, "whatsapp-desk-symbolic.svg")
-_ICON_SYMBOLIC_PATH = os.path.join(ICON_DIR, "whatsapp-desk-symbolic.svg")
-_ICON_UNREAD_PATH = os.path.join(ICON_DIR, "whatsapp-desk-unread-symbolic.svg")
-
 # Nombre de los iconos (sin ruta ni extensión — protocolo SNI los resuelve por nombre)
-_ICON_NORMAL = "whatsapp-desk-symbolic"
-_ICON_UNREAD = "whatsapp-desk-unread-symbolic"
+# En Flatpak se usan nombres RDNN para que coincidan con los iconos exportados al host.
+if IN_FLATPAK:
+    _ICON_NORMAL = "com.vladzur.WhatsAppDesk-symbolic"
+    _ICON_UNREAD = "com.vladzur.WhatsAppDesk-unread-symbolic"
+else:
+    _ICON_NORMAL = "whatsapp-desk-symbolic"
+    _ICON_UNREAD = "whatsapp-desk-unread-symbolic"
+
+_ICON_SYMBOLIC_SRC = os.path.join(ICON_SRC_DIR, f"{_ICON_NORMAL}.svg")
+_ICON_SYMBOLIC_PATH = os.path.join(ICON_DIR, f"{_ICON_NORMAL}.svg")
+_ICON_UNREAD_PATH = os.path.join(ICON_DIR, f"{_ICON_UNREAD}.svg")
 
 # SVG del icono con badge: mismo diseño base + círculo de notificación verde
 _ICON_UNREAD_SVG = """\
@@ -227,15 +232,18 @@ class StatusNotifierItem:
             self._registered = True
             print("[SNI] Icono de bandeja registrado en el Watcher correctamente")
 
-            # Emitir NewIconThemePath para que appindicatorsupport recargue
-            # el icono desde nuestro directorio de temas personalizado.
-            self._connection.emit_signal(
-                None,                                  # destination (broadcast)
-                SNI_PATH,
-                "org.kde.StatusNotifierItem",
-                "NewIconThemePath",
-                GLib.Variant("(s)", (ICON_THEME_DIR,)),
-            )
+            # Emitir NewIconThemePath solo fuera de Flatpak.
+            # Dentro del sandbox la ruta /app/share/icons/ no es accesible
+            # al host; los iconos exportados por Flatpak se resuelven vía
+            # XDG_DATA_DIRS estándar del sistema.
+            if not IN_FLATPAK:
+                self._connection.emit_signal(
+                    None,
+                    SNI_PATH,
+                    "org.kde.StatusNotifierItem",
+                    "NewIconThemePath",
+                    GLib.Variant("(s)", (ICON_THEME_DIR,)),
+                )
         except Exception as exc:
             # El Watcher puede no estar disponible (escritorio sin soporte SNI)
             print(f"[SNI] No se pudo registrar en el Watcher: {exc}")
@@ -271,7 +279,7 @@ class StatusNotifierItem:
             # IconName se sirve dinámicamente desde self._current_icon
             # para reflejar el estado de mensajes no leídos.
             "IconName": GLib.Variant("s", self._current_icon),
-            "IconThemePath": GLib.Variant("s", ICON_THEME_DIR),
+            "IconThemePath": GLib.Variant("s", "" if IN_FLATPAK else ICON_THEME_DIR),
             "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
         }
