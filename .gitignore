@@ -1,4 +1,20 @@
-## ignore cache files
+# Bytecode
 __pycache__/
-## ignore virtual environment
-venv/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Setuptools / pip
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Pytest
+.pytest_cache/
+
+# Flatpak
+.flatpak-build/
+.flatpak-builder/
+*.flatpak
