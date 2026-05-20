@@ -21,24 +21,29 @@ from gi.repository import GLib, Gio  # noqa: E402
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
-SNI_NAME_TEMPLATE = "org.kde.StatusNotifierItem-{pid}-{instance}"
+SNI_NAME_TEMPLATE = "com.vladzur.WhatsAppDesk.tray"
 SNI_PATH = "/StatusNotifierItem"
 
-# Rutas de iconos
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_ICON_SYMBOLIC_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk-symbolic.svg")
-_XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-# appindicatorsupport espera la raíz del directorio de iconos XDG,
-# NO la subdirectamente del tema (hicolor). El sufijo /hicolor lo añade
-# internamente la extensión al buscar el icono por nombre.
-_ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons")
-_ICON_INSTALL_DIR = os.path.join(_XDG_DATA, "icons", "hicolor", "scalable", "apps")
-_ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
-_ICON_UNREAD_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-unread-symbolic.svg")
+# Rutas de iconos desde el módulo central de constantes
+from whatsapp_desk.constants import (  # noqa: E402
+    IN_FLATPAK,
+    ICON_DIR,
+    ICON_SRC_DIR,
+    ICON_THEME_DIR,
+)
 
 # Nombre de los iconos (sin ruta ni extensión — protocolo SNI los resuelve por nombre)
-_ICON_NORMAL = "whatsapp-desk-symbolic"
-_ICON_UNREAD = "whatsapp-desk-unread-symbolic"
+# En Flatpak se usan nombres RDNN para que coincidan con los iconos exportados al host.
+if IN_FLATPAK:
+    _ICON_NORMAL = "com.vladzur.WhatsAppDesk-symbolic"
+    _ICON_UNREAD = "com.vladzur.WhatsAppDesk-unread-symbolic"
+else:
+    _ICON_NORMAL = "whatsapp-desk-symbolic"
+    _ICON_UNREAD = "whatsapp-desk-unread-symbolic"
+
+_ICON_SYMBOLIC_SRC = os.path.join(ICON_SRC_DIR, f"{_ICON_NORMAL}.svg")
+_ICON_SYMBOLIC_PATH = os.path.join(ICON_DIR, f"{_ICON_NORMAL}.svg")
+_ICON_UNREAD_PATH = os.path.join(ICON_DIR, f"{_ICON_UNREAD}.svg")
 
 # SVG del icono con badge: mismo diseño base + círculo de notificación verde
 _ICON_UNREAD_SVG = """\
@@ -103,11 +108,16 @@ SNI_INTROSPECTION_XML = """
 
 
 def _ensure_symbolic_icon_installed():
-    """Copia el icono symbolic al directorio de iconos del usuario."""
+    """Copia el icono symbolic al directorio de iconos del usuario.
+
+    En Flatpak los iconos ya están preinstalados en /app/share/icons/.
+    """
+    if IN_FLATPAK:
+        return
     if not os.path.isfile(_ICON_SYMBOLIC_SRC):
         return
     try:
-        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        os.makedirs(ICON_DIR, exist_ok=True)
         if not os.path.isfile(_ICON_SYMBOLIC_PATH):
             import shutil
             shutil.copy2(_ICON_SYMBOLIC_SRC, _ICON_SYMBOLIC_PATH)
@@ -116,9 +126,14 @@ def _ensure_symbolic_icon_installed():
 
 
 def _ensure_unread_icon_installed():
-    """Crea el icono con badge de notificación si no existe."""
+    """Crea el icono con badge de notificación si no existe.
+
+    En Flatpak los iconos ya están preinstalados en /app/share/icons/.
+    """
+    if IN_FLATPAK:
+        return
     try:
-        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        os.makedirs(ICON_DIR, exist_ok=True)
         if not os.path.isfile(_ICON_UNREAD_PATH):
             with open(_ICON_UNREAD_PATH, "w", encoding="utf-8") as f:
                 f.write(_ICON_UNREAD_SVG)
@@ -130,8 +145,8 @@ def _pid():
     return os.getpid()
 
 
-def _bus_name(instance=1):
-    return SNI_NAME_TEMPLATE.format(pid=_pid(), instance=instance)
+def _bus_name():
+    return SNI_NAME_TEMPLATE
 
 
 class StatusNotifierItem:
@@ -217,15 +232,18 @@ class StatusNotifierItem:
             self._registered = True
             print("[SNI] Icono de bandeja registrado en el Watcher correctamente")
 
-            # Emitir NewIconThemePath para que appindicatorsupport recargue
-            # el icono desde nuestro directorio de temas personalizado.
-            self._connection.emit_signal(
-                None,                                  # destination (broadcast)
-                SNI_PATH,
-                "org.kde.StatusNotifierItem",
-                "NewIconThemePath",
-                GLib.Variant("(s)", (_ICON_THEME_DIR,)),
-            )
+            # Emitir NewIconThemePath solo fuera de Flatpak.
+            # Dentro del sandbox la ruta /app/share/icons/ no es accesible
+            # al host; los iconos exportados por Flatpak se resuelven vía
+            # XDG_DATA_DIRS estándar del sistema.
+            if not IN_FLATPAK:
+                self._connection.emit_signal(
+                    None,
+                    SNI_PATH,
+                    "org.kde.StatusNotifierItem",
+                    "NewIconThemePath",
+                    GLib.Variant("(s)", (ICON_THEME_DIR,)),
+                )
         except Exception as exc:
             # El Watcher puede no estar disponible (escritorio sin soporte SNI)
             print(f"[SNI] No se pudo registrar en el Watcher: {exc}")
@@ -261,7 +279,7 @@ class StatusNotifierItem:
             # IconName se sirve dinámicamente desde self._current_icon
             # para reflejar el estado de mensajes no leídos.
             "IconName": GLib.Variant("s", self._current_icon),
-            "IconThemePath": GLib.Variant("s", _ICON_THEME_DIR),
+            "IconThemePath": GLib.Variant("s", "" if IN_FLATPAK else ICON_THEME_DIR),
             "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
         }

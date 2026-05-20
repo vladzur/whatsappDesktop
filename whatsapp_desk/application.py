@@ -11,33 +11,34 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("WebKit", "6.0")
 from gi.repository import Gtk, Gio, GLib  # noqa: E402
 
-from whatsapp_desk.constants import APP_ID
+from whatsapp_desk.constants import (
+    APP_ID,
+    IN_FLATPAK,
+    ICON_DIR,
+    ICON_SRC_DIR,
+)
 from whatsapp_desk.config import ConfigManager
 from whatsapp_desk.webview_manager import WebViewManager
 
-# Ruta al icono SVG dentro del proyecto
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_ICON_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk.svg")
-
-# Directorio de instalación del icono según XDG
-_ICON_INSTALL_DIR = os.path.join(
-    os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
-    "icons",
-    "hicolor",
-    "scalable",
-    "apps",
-)
-_ICON_INSTALL_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk.svg")
-_ICON_SYMBOLIC_SRC = os.path.join(_PROJECT_ROOT, "whatsapp-desk-symbolic.svg")
-_ICON_SYMBOLIC_PATH = os.path.join(_ICON_INSTALL_DIR, "whatsapp-desk-symbolic.svg")
+# Rutas de iconos derivadas de las constantes del módulo
+_ICON_SRC = os.path.join(ICON_SRC_DIR, "whatsapp-desk.svg")
+_ICON_SYMBOLIC_SRC = os.path.join(ICON_SRC_DIR, "whatsapp-desk-symbolic.svg")
+_ICON_INSTALL_PATH = os.path.join(ICON_DIR, "whatsapp-desk.svg")
+_ICON_SYMBOLIC_PATH = os.path.join(ICON_DIR, "whatsapp-desk-symbolic.svg")
 
 
 def _ensure_icons_installed():
-    """Copia los iconos al directorio XDG del usuario y actualiza caché."""
+    """Copia los iconos al directorio XDG del usuario y actualiza caché.
+
+    En Flatpak los iconos ya vienen preinstalados en /app/share/icons/,
+    por lo que esta función es no-op en ese entorno.
+    """
+    if IN_FLATPAK:
+        return True
     if not os.path.isfile(_ICON_SRC):
         return False
     try:
-        os.makedirs(_ICON_INSTALL_DIR, exist_ok=True)
+        os.makedirs(ICON_DIR, exist_ok=True)
         for src, dst in [
             (_ICON_SRC, _ICON_INSTALL_PATH),
             (_ICON_SYMBOLIC_SRC, _ICON_SYMBOLIC_PATH),
@@ -45,7 +46,7 @@ def _ensure_icons_installed():
             if os.path.isfile(src) and not os.path.isfile(dst):
                 shutil.copy2(src, dst)
         # Actualizar caché de iconos GTK si la herramienta existe
-        cache_dir = os.path.dirname(os.path.dirname(_ICON_INSTALL_DIR))
+        cache_dir = os.path.dirname(os.path.dirname(ICON_DIR))
         subprocess.run(
             ["gtk-update-icon-cache", "-t", "-f", cache_dir],
             capture_output=True,
