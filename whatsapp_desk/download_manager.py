@@ -67,9 +67,9 @@ class DownloadManager:
         """Callback del diálogo de guardado."""
         try:
             gfile = dialog.save_finish(result)
-            uri = gfile.get_uri()
-            download.set_destination(uri)
-            self._active_downloads[download] = gfile.get_path() or uri
+            path = gfile.get_path()
+            download.set_destination(path)
+            self._active_downloads[download] = path
             self._update_title(download)
         except GLib.Error:
             # El usuario canceló el diálogo — cancelar la descarga
