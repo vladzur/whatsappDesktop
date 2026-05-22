@@ -24,10 +24,18 @@ NOTIFY_AVAILABLE = False
 
 try:
     gi.require_version("Notify", "0.7")
-    from gi.repository import Notify  # noqa: E402
+    from gi.repository import Notify, GLib  # noqa: E402
     NOTIFY_AVAILABLE = True
 except (ValueError, ImportError):
     pass
+
+from whatsapp_desk.constants import APP_ID, IN_FLATPAK  # noqa: E402
+
+# Icono de la aplicación (coincide con el IconName del StatusNotifierItem)
+_ICON_NORMAL = (
+    "com.vladzur.WhatsAppDesk-symbolic" if IN_FLATPAK
+    else "whatsapp-desk-symbolic"
+)
 
 # Tiempo mínimo entre notificaciones (segundos) para evitar spam
 DEBOUNCE_SECONDS = 3
@@ -57,7 +65,7 @@ class NotificationManager:
         self._unread_count = 0
 
         if NOTIFY_AVAILABLE:
-            Notify.init("WhatsApp Desk")
+            Notify.init(APP_ID)
 
     # ── API pública ───────────────────────────────────────────────────────
 
@@ -115,8 +123,11 @@ class NotificationManager:
             return
         try:
             notification = Notify.Notification.new(
-                title, body, "whatsapp-desk-symbolic"
+                title, body, _ICON_NORMAL
             )
+            # El hint desktop-entry es obligatorio para que GNOME Shell
+            # muestre la notificación en el feed y la asocie con la app.
+            notification.set_hint("desktop-entry", GLib.Variant("s", APP_ID))
             notification.set_timeout(5000)  # 5 segundos
             notification.show()
         except Exception:

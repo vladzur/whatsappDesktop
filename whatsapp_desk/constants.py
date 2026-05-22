@@ -31,9 +31,12 @@ if IN_FLATPAK:
     ICON_THEME_DIR = "/app/share/icons"
     ICON_SRC_DIR = ICON_DIR
 else:
-    _XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-    ICON_DIR = os.path.join(_XDG_DATA, "icons", "hicolor", "scalable", "apps")
-    ICON_THEME_DIR = os.path.join(_XDG_DATA, "icons")
+    # Usamos el home real ($HOME) en vez de XDG_DATA_HOME porque entornos
+    # como Snap sobrescriben XDG_DATA_HOME con un path privado donde el
+    # sistema (GNOME Shell, libnotify) no busca iconos.
+    _HOME = os.path.expanduser("~")
+    ICON_DIR = os.path.join(_HOME, ".local", "share", "icons", "hicolor", "scalable", "apps")
+    ICON_THEME_DIR = os.path.join(_HOME, ".local", "share", "icons")
     ICON_SRC_DIR = _PROJECT_ROOT
 
 # Tamaño por defecto de la ventana
