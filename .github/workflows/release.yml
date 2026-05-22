@@ -1,0 +1,54 @@
+name: Build Flatpak on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder python3 python3-pip
+
+      - name: Add Flathub remote
+        run: flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install GNOME 49 runtime and SDK
+        run: |
+          flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
+
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --force-clean --user --install-deps-from=flathub \
+            --disable-rofiles-fuse \
+            .flatpak-build \
+            build-aux/com.vladzur.WhatsAppDesk.json
+
+      - name: Export to local repo
+        run: |
+          flatpak build-export \
+            ~/.local/share/flatpak/repo \
+            .flatpak-build \
+            master
+
+      - name: Create Flatpak bundle
+        run: |
+          flatpak build-bundle \
+            ~/.local/share/flatpak/repo \
+            whatsapp-desk.flatpak \
+            com.vladzur.WhatsAppDesk \
+            master
+
+      - name: Upload Flatpak bundle to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: whatsapp-desk.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
