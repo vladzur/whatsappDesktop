@@ -13,7 +13,7 @@ from whatsapp_desk.download_manager import DownloadManager
 from whatsapp_desk.status_notifier import StatusNotifierItem
 from whatsapp_desk.notifications import NotificationManager
 from whatsapp_desk.dark_mode import DarkModeManager
-from whatsapp_desk.constants import WHATSAPP_URL
+from whatsapp_desk.constants import WHATSAPP_URL, ICON_THEME_DIR
 
 
 class MainWindow(Gtk.ApplicationWindow):
@@ -39,15 +39,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self.set_title("WhatsApp Desk")
 
         # Agregar directorio de iconos del usuario al tema
-        import os
-        icon_base = os.path.join(
-            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
-            "icons",
-        )
         display = Gdk.Display.get_default()
-        if display:
+        if display and not ICON_THEME_DIR.startswith("/app/"):
             theme = Gtk.IconTheme.get_for_display(display)
-            theme.add_search_path(icon_base)
+            theme.add_search_path(ICON_THEME_DIR)
 
         self.set_icon_name("whatsapp-desk")
         self.set_default_size(
