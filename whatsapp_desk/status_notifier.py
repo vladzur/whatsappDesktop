@@ -352,7 +352,7 @@ class StatusNotifierItem:
 
     def _emit_new_icon(self):
         """Emite la señal D-Bus NewIcon para que appindicatorsupport recargue el icono."""
-        if not self._registered or self._connection is None:
+        if self._connection is None:
             return
         try:
             self._connection.emit_signal(
