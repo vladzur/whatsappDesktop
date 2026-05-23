@@ -98,12 +98,11 @@ jobs:
           cat > ostree/index.flatpakrepo << 'EOF'
           [Flatpak Repo]
           Title=WhatsApp Desk
-          Url=https://vladzur.github.io/whatsappDesk/
-          Homepage=https://github.com/vladzur/whatsappDesk
+          Url=https://vladzur.github.io/whatsappDesktop/
+          Homepage=https://github.com/vladzur/whatsappDesktop
           Comment=Unofficial WhatsApp desktop client packaged as a Flatpak
           Description=WhatsApp Web wrapped in a native GTK 4 desktop app with tray icon, notifications, and dark mode support.
-          Icon=https://vladzur.github.io/whatsappDesk/whatsapp-desk.svg
-          GPGKey=
+          Icon=https://vladzur.github.io/whatsappDesktop/whatsapp-desk.svg
           DefaultBranch=master
           EOF
 
