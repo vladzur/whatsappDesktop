@@ -1,14 +1,16 @@
-name: Build Flatpak on Release
+name: Build and Deploy
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  # ── Job 1: Bundle .flatpak adjunto al release ──
+  bundle:
     runs-on: ubuntu-24.04
 
     steps:
@@ -55,3 +57,68 @@ jobs:
           files: whatsapp-desk.flatpak
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Job 2: Repositorio Flatpak desplegado en GitHub Pages ──
+  repo:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder python3 python3-pip
+
+      - name: Add Flathub remote
+        run: flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install GNOME 49 runtime and SDK
+        run: |
+          flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
+
+      - name: Build Flatpak into OSTree repo
+        run: |
+          flatpak-builder --force-clean --user --install-deps-from=flathub \
+            --disable-rofiles-fuse \
+            --repo=ostree \
+            .flatpak-build \
+            build-aux/com.vladzur.WhatsAppDesk.json
+
+      - name: Update OSTree summary
+        run: |
+          flatpak build-update-repo --prune ostree/
+
+      - name: Generate index.flatpakrepo
+        run: |
+          cat > ostree/index.flatpakrepo << 'EOF'
+          [Flatpak Repo]
+          Title=WhatsApp Desk
+          Url=https://vladzur.github.io/whatsappDesk/
+          Homepage=https://github.com/vladzur/whatsappDesk
+          Comment=Unofficial WhatsApp desktop client packaged as a Flatpak
+          Description=WhatsApp Web wrapped in a native GTK 4 desktop app with tray icon, notifications, and dark mode support.
+          Icon=https://vladzur.github.io/whatsappDesk/whatsapp-desk.svg
+          GPGKey=
+          DefaultBranch=master
+          EOF
+
+      - name: Copy icon to repo root
+        run: cp whatsapp-desk.svg ostree/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ostree/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
