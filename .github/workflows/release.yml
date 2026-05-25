@@ -17,6 +17,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract version from tag
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -33,6 +39,7 @@ jobs:
         run: |
           flatpak-builder --force-clean --user --install-deps-from=flathub \
             --disable-rofiles-fuse \
+            --env="WHATSAPP_DESK_VERSION=$VERSION" \
             .flatpak-build \
             build-aux/com.vladzur.WhatsAppDesk.json
 
@@ -41,7 +48,7 @@ jobs:
           flatpak build-export \
             ~/.local/share/flatpak/repo \
             .flatpak-build \
-            master
+            "$VERSION"
 
       - name: Create Flatpak bundle
         run: |
@@ -49,7 +56,7 @@ jobs:
             ~/.local/share/flatpak/repo \
             whatsapp-desk.flatpak \
             com.vladzur.WhatsAppDesk \
-            master
+            "$VERSION"
 
       - name: Upload Flatpak bundle to release
         uses: softprops/action-gh-release@v2
@@ -69,6 +76,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract version from tag
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -85,6 +98,8 @@ jobs:
         run: |
           flatpak-builder --force-clean --user --install-deps-from=flathub \
             --disable-rofiles-fuse \
+            --env="WHATSAPP_DESK_VERSION=$VERSION" \
+            --default-branch="$VERSION" \
             --repo=ostree \
             .flatpak-build \
             build-aux/com.vladzur.WhatsAppDesk.json
@@ -95,7 +110,7 @@ jobs:
 
       - name: Generate index.flatpakrepo
         run: |
-          cat > ostree/index.flatpakrepo << 'EOF'
+          cat > ostree/index.flatpakrepo << EOF
           [Flatpak Repo]
           Title=WhatsApp Desk
           Url=https://vladzur.github.io/whatsappDesktop/
@@ -103,7 +118,7 @@ jobs:
           Comment=Unofficial WhatsApp desktop client packaged as a Flatpak
           Description=WhatsApp Web wrapped in a native GTK 4 desktop app with tray icon, notifications, and dark mode support.
           Icon=https://vladzur.github.io/whatsappDesktop/whatsapp-desk.svg
-          DefaultBranch=master
+          DefaultBranch=$VERSION
           EOF
 
       - name: Copy icon to repo root
