@@ -12,8 +12,13 @@
         "--share=ipc",
         "--device=dri",
         "--filesystem=xdg-download",
+        "--filesystem=/usr/share/fonts:ro",
+        "--filesystem=~/.local/share/fonts:ro",
+        "--filesystem=~/.config/fontconfig:ro",
         "--own-name=com.vladzur.WhatsAppDesk",
         "--own-name=com.vladzur.WhatsAppDesk.*",
+        "--talk-name=org.freedesktop.portal.Desktop",
+        "--talk-name=org.freedesktop.portal.OpenURI",
         "--talk-name=org.kde.StatusNotifierWatcher",
         "--talk-name=org.freedesktop.Notifications"
     ],

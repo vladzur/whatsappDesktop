@@ -1,10 +1,13 @@
 """Manejo de enlaces externos — abre URLs fuera de WhatsApp en el navegador."""
 
+import logging
 from urllib.parse import urlparse
 import gi
 
 gi.require_version("WebKit", "6.0")
-from gi.repository import Gio, WebKit  # noqa: E402
+from gi.repository import Gio, GLib, WebKit  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 # Dominios que pertenecen a WhatsApp y deben cargarse en el WebView
@@ -109,9 +112,26 @@ class UrlHandler:
             return False
 
     def _open_external(self, uri: str):
-        """Abre una URL en el navegador por defecto del sistema."""
+        """Abre una URL en el navegador por defecto del sistema.
+
+        Usa la variante asíncrona para que la llamada D-Bus al portal
+        xdg-desktop-portal tenga tiempo de completarse dentro del sandbox
+        de Flatpak. La versión síncrona puede retornar antes de que el
+        portal haya procesado la solicitud, dejando el enlace sin abrir.
+        """
+        Gio.AppInfo.launch_default_for_uri_async(
+            uri,
+            None,   # AppLaunchContext
+            None,   # Cancellable
+            self._on_launch_finished,
+            uri,    # user_data (para el log)
+        )
+
+    @staticmethod
+    def _on_launch_finished(source, result, uri):
+        """Callback de launch_default_for_uri_async — registra errores."""
         try:
-            Gio.AppInfo.launch_default_for_uri(uri)
-        except Exception:
-            pass  # Fallar silenciosamente si no se puede abrir
+            Gio.AppInfo.launch_default_for_uri_finish(result)
+        except GLib.Error as exc:
+            logger.warning("No se pudo abrir el enlace '%s': %s", uri, exc)
 
