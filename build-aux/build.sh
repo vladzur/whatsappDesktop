@@ -19,9 +19,14 @@ set -euo pipefail
 APP_ID="com.vladzur.WhatsAppDesk"
 BUILD_DIR=".flatpak-build"
 OUTPUT="whatsapp-desk.flatpak"
+BRANCH="stable"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Detectar versión desde el último git tag (ej: v1.0.6 → 1.0.6)
+VERSION="$(git -C "$PROJECT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo '0.0.0-dev')"
+echo "==> Versión detectada: $VERSION"
 
 echo "==> Verificando runtime GNOME 49..."
 flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*49" || {
@@ -31,23 +36,37 @@ flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*49" || {
 
 cd "$PROJECT_DIR"
 
+# Inyectar versión en metainfo (in-place, se restaura tras el build)
+echo "==> Inyectando versión $VERSION en metainfo..."
+sed -i "s/@VERSION@/$VERSION/" "$APP_ID.metainfo.xml"
+
+# Generar manifiesto temporal con la versión inyectada
+echo "==> Generando manifiesto con versión $VERSION..."
+jq --arg version "$VERSION" \
+    '.modules[0]."build-options".env.WHATSAPP_DESK_VERSION = $version' \
+    build-aux/"$APP_ID".json > build-aux/.local-manifest.json
+
 echo "==> Construyendo Flatpak..."
-flatpak-builder --force-clean --user --install \
+flatpak-builder --force-clean --user \
     "$BUILD_DIR" \
-    build-aux/"$APP_ID".json
+    build-aux/.local-manifest.json
+
+# Restaurar archivos temporales
+rm -f build-aux/.local-manifest.json
+git checkout -- "$APP_ID.metainfo.xml" 2>/dev/null || true
 
 echo "==> Exportando al repositorio local..."
 flatpak build-export \
     ~/.local/share/flatpak/repo \
     "$BUILD_DIR" \
-    master
+    "$BRANCH"
 
 echo "==> Creando bundle portable..."
 flatpak build-bundle \
     ~/.local/share/flatpak/repo \
     "$OUTPUT" \
     "$APP_ID" \
-    master
+    "$BRANCH"
 
 echo ""
 echo "============================================"

@@ -12,7 +12,6 @@
         "--share=ipc",
         "--device=dri",
         "--filesystem=xdg-download",
-        "--filesystem=/usr/share/fonts:ro",
         "--filesystem=~/.local/share/fonts:ro",
         "--filesystem=~/.config/fontconfig:ro",
         "--own-name=com.vladzur.WhatsAppDesk",
@@ -36,6 +35,11 @@
         {
             "name": "whatsapp-desk",
             "buildsystem": "simple",
+            "build-options": {
+                "env": {
+                    "WHATSAPP_DESK_VERSION": "1.0.6"
+                }
+            },
             "build-commands": [
                 "install -Dm644 whatsapp-desk.svg /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk.svg",
                 "cp /app/share/icons/hicolor/scalable/apps/com.vladzur.WhatsAppDesk.svg /app/share/icons/hicolor/scalable/apps/whatsapp-desk.svg",
@@ -44,6 +48,7 @@
                 "bash build-aux/generate-icons.sh",
                 "sed -i 's/^Icon=.*/Icon=com.vladzur.WhatsAppDesk/' whatsapp_desk.desktop.in",
                 "install -Dm644 whatsapp_desk.desktop.in /app/share/applications/com.vladzur.WhatsAppDesk.desktop",
+                "install -Dm644 com.vladzur.WhatsAppDesk.metainfo.xml /app/share/metainfo/com.vladzur.WhatsAppDesk.metainfo.xml",
                 "pip3 install --no-build-isolation --no-deps --prefix=/app ."
             ],
             "sources": [
