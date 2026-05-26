@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.vladzur.WhatsAppDesk</id>
+  <name>WhatsApp Desk</name>
+  <summary>GNOME desktop application for WhatsApp Web</summary>
+  <developer_name>Vladzur</developer_name>
+  <launchable type="desktop-id">com.vladzur.WhatsAppDesk.desktop</launchable>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      WhatsApp Desk is a native GTK 4 wrapper for WhatsApp Web, built with GNOME
+      integration in mind. It provides a dedicated desktop window with system tray
+      support, desktop notifications, dark mode, and media download handling.
+    </p>
+    <ul>
+      <li>System tray icon with unread message indicator</li>
+      <li>Desktop notifications via libnotify</li>
+      <li>Media downloads to ~/Downloads</li>
+      <li>Wayland and X11 support</li>
+    </ul>
+  </description>
+  <categories>
+    <category>Network</category>
+    <category>InstantMessaging</category>
+  </categories>
+  <keywords>
+    <keyword>WhatsApp</keyword>
+    <keyword>Chat</keyword>
+    <keyword>Messaging</keyword>
+    <keyword>IM</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/vladzur/whatsappDesktop</url>
+  <url type="bugtracker">https://github.com/vladzur/whatsappDesktop/issues</url>
+  <releases>
+    <release version="1.0.6" date="2026-05-26"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

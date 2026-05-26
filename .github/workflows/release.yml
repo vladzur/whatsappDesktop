@@ -37,6 +37,7 @@ jobs:
 
       - name: Build Flatpak
         run: |
+          sed -i "s/@VERSION@/${VERSION}/" com.vladzur.WhatsAppDesk.metainfo.xml
           jq --arg version "${VERSION}" \
             '.modules[0]."build-options".env.WHATSAPP_DESK_VERSION = $version' \
             build-aux/com.vladzur.WhatsAppDesk.json > build-aux/.ci-manifest.json
@@ -51,7 +52,7 @@ jobs:
           flatpak build-export \
             ~/.local/share/flatpak/repo \
             .flatpak-build \
-            "$VERSION"
+            stable
 
       - name: Create Flatpak bundle
         run: |
@@ -59,7 +60,7 @@ jobs:
             ~/.local/share/flatpak/repo \
             whatsapp-desk.flatpak \
             com.vladzur.WhatsAppDesk \
-            "$VERSION"
+            stable
 
       - name: Upload Flatpak bundle to release
         uses: softprops/action-gh-release@v2
@@ -99,12 +100,13 @@ jobs:
 
       - name: Build Flatpak into OSTree repo
         run: |
+          sed -i "s/@VERSION@/${VERSION}/" com.vladzur.WhatsAppDesk.metainfo.xml
           jq --arg version "${VERSION}" \
             '.modules[0]."build-options".env.WHATSAPP_DESK_VERSION = $version' \
             build-aux/com.vladzur.WhatsAppDesk.json > build-aux/.ci-manifest.json
           flatpak-builder --force-clean --user --install-deps-from=flathub \
             --disable-rofiles-fuse \
-            --default-branch="$VERSION" \
+            --default-branch="stable" \
             --repo=ostree \
             .flatpak-build \
             build-aux/.ci-manifest.json
@@ -124,7 +126,7 @@ jobs:
           Comment=Unofficial WhatsApp desktop client packaged as a Flatpak
           Description=WhatsApp Web wrapped in a native GTK 4 desktop app with tray icon, notifications, and dark mode support.
           Icon=https://vladzur.github.io/whatsappDesktop/whatsapp-desk.svg
-          DefaultBranch=$VERSION
+          DefaultBranch=stable
           EOF
 
       - name: Copy icon to repo root
