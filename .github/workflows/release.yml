@@ -37,11 +37,14 @@ jobs:
 
       - name: Build Flatpak
         run: |
+          jq --arg version "${VERSION}" \
+            '.modules[0]."build-options".env.WHATSAPP_DESK_VERSION = $version' \
+            build-aux/com.vladzur.WhatsAppDesk.json > build-aux/.ci-manifest.json
           flatpak-builder --force-clean --user --install-deps-from=flathub \
             --disable-rofiles-fuse \
-            --env="WHATSAPP_DESK_VERSION=$VERSION" \
             .flatpak-build \
-            build-aux/com.vladzur.WhatsAppDesk.json
+            build-aux/.ci-manifest.json
+          rm build-aux/.ci-manifest.json
 
       - name: Export to local repo
         run: |
@@ -96,13 +99,16 @@ jobs:
 
       - name: Build Flatpak into OSTree repo
         run: |
+          jq --arg version "${VERSION}" \
+            '.modules[0]."build-options".env.WHATSAPP_DESK_VERSION = $version' \
+            build-aux/com.vladzur.WhatsAppDesk.json > build-aux/.ci-manifest.json
           flatpak-builder --force-clean --user --install-deps-from=flathub \
             --disable-rofiles-fuse \
-            --env="WHATSAPP_DESK_VERSION=$VERSION" \
             --default-branch="$VERSION" \
             --repo=ostree \
             .flatpak-build \
-            build-aux/com.vladzur.WhatsAppDesk.json
+            build-aux/.ci-manifest.json
+          rm build-aux/.ci-manifest.json
 
       - name: Update OSTree summary
         run: |
