@@ -52,6 +52,8 @@ class UrlHandler:
         """Enruta la decisión de política al manejador correcto."""
         if decision_type == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
             return self._handle_navigation(decision)
+        if decision_type == WebKit.PolicyDecisionType.NEW_WINDOW_ACTION:
+            return self._handle_new_window(decision)
         if decision_type == WebKit.PolicyDecisionType.RESPONSE:
             return self._handle_response(decision)
         return False
@@ -69,6 +71,23 @@ class UrlHandler:
 
         # Enlace externo: abrir en el navegador y bloquear navegación interna
         self._open_external(uri)
+        decision.ignore()
+        return True
+
+    def _handle_new_window(self, decision: WebKit.NavigationPolicyDecision) -> bool:
+        """Intercepta window.open() y target=_blank — abre en el browser externo.
+
+        WhatsApp Web usa window.open() para abrir links de mensajes.
+        Sin este manejador la solicitud se descarta silenciosamente porque
+        el WebView no tiene soporte para abrir nuevas ventanas.
+        """
+        nav_action = decision.get_navigation_action()
+        request = nav_action.get_request()
+        uri = request.get_uri()
+
+        if uri and uri not in ("about:blank", ""):
+            self._open_external(uri)
+
         decision.ignore()
         return True
 

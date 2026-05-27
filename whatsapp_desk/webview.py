@@ -53,6 +53,14 @@ class WhatsAppWebView(WebKit.WebView):
             enable_media_stream=True,
             # Habilita la Encrypted Media Extension (EME) para contenido protegido.
             enable_encrypted_media=True,
+            # ── Rendering ─────────────────────────────────────────────────
+            # Deshabilita la aceleración GPU en el compositor de capas de WebKit.
+            # Algunos drivers Mesa/Wayland dentro del sandbox de Flatpak producen
+            # artefactos visuales (bordes pixelados en emojis de reacciones,
+            # glitches en transparencias). Esto NO afecta a WebGL (el contenido
+            # multimedia de WhatsApp sigue usando GPU); solo cambia cómo WebKit
+            # compone sus propias capas internas.
+            hardware_acceleration_policy=WebKit.HardwareAccelerationPolicy.NEVER,
         )
         self.set_settings(settings)
 
