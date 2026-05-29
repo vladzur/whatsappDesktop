@@ -69,6 +69,14 @@ class UrlHandler:
         if self._is_whatsapp_url(uri):
             return False  # Permitir navegación dentro del WebView
 
+        # Las URLs blob: son objetos Blob de JavaScript almacenados en memoria
+        # del proceso WebKit. No tienen hostname ni pueden abrirse fuera del
+        # WebView. Debemos dejar que WebKit las procese internamente: esto
+        # disparará download-started en la NetworkSession (manejado por
+        # DownloadManager) cuando el MIME type no sea navegable.
+        if uri.startswith("blob:"):
+            return False  # Dejar que WebKit lo maneje → DownloadManager
+
         # Enlace externo: abrir en el navegador y bloquear navegación interna
         self._open_external(uri)
         decision.ignore()
@@ -84,6 +92,13 @@ class UrlHandler:
         nav_action = decision.get_navigation_action()
         request = nav_action.get_request()
         uri = request.get_uri()
+
+        # Las blob: URLs son recursos en memoria del WebView: ignorar la
+        # apertura de nueva ventana y dejar que WebKit procese el blob
+        # internamente (el DownloadManager se encargará de la descarga).
+        if uri and uri.startswith("blob:"):
+            decision.ignore()
+            return True
 
         if uri and uri not in ("about:blank", ""):
             self._open_external(uri)
