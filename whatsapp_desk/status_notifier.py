@@ -6,6 +6,12 @@ un StatusNotifierItem en la bandeja del sistema.
 
 Protocolo: org.kde.StatusNotifierItem (freedesktop.org)
 
+Menú contextual
+---------------
+Usa el protocolo com.canonical.dbusmenu (``dbusmenu.py``) para registrar
+un menú D-Bus que el entorno de escritorio muestra al hacer clic derecho
+en el icono.  Las opciones disponibles son: **Abrir**, **Ocultar** y **Salir**.
+
 Badge de mensajes no leídos
 ---------------------------
 Cuando hay mensajes sin leer se cambia ``IconName`` al icono
@@ -31,6 +37,7 @@ from whatsapp_desk.constants import (  # noqa: E402
     ICON_SRC_DIR,
     ICON_THEME_DIR,
 )
+from whatsapp_desk.dbusmenu import DbusMenu, DBUSMENU_PATH  # noqa: E402
 
 # Nombre de los iconos (sin ruta ni extensión — protocolo SNI los resuelve por nombre)
 # En Flatpak se usan nombres RDNN para que coincidan con los iconos exportados al host.
@@ -168,6 +175,7 @@ class StatusNotifierItem:
         self._owner_id = 0
         self._registered = False
         self._current_icon = _ICON_NORMAL   # nombre de icono activo
+        self._dbus_menu: DbusMenu | None = None
 
         _ensure_symbolic_icon_installed()
         _ensure_unread_icon_installed()
@@ -280,8 +288,10 @@ class StatusNotifierItem:
             # para reflejar el estado de mensajes no leídos.
             "IconName": GLib.Variant("s", self._current_icon),
             "IconThemePath": GLib.Variant("s", "" if IN_FLATPAK else ICON_THEME_DIR),
-            "ItemIsMenu": GLib.Variant("b", False),
-            "Menu": GLib.Variant("o", "/NO_DBUSMENU"),
+            # ItemIsMenu=True indica que el clic primario también abre el menú.
+            # Algunos entornos (KDE) lo usan; GNOME lo ignora.
+            "ItemIsMenu": GLib.Variant("b", True),
+            "Menu": GLib.Variant("o", DBUSMENU_PATH),
         }
         return props.get(key)
 
@@ -295,9 +305,43 @@ class StatusNotifierItem:
 
         Este es el momento correcto para notificar al StatusNotifierWatcher,
         ya que el nombre de bus ya está disponible y el objeto D-Bus registrado.
+        También se crea aquí el objeto DBusMenu para el menú contextual.
         """
         print(f"[SNI] Nombre D-Bus adquirido: {name}")
+        self._create_dbus_menu()
         self._register_with_watcher()
+
+    def _create_dbus_menu(self):
+        """Instancia el menú contextual DBusMenu con las acciones de bandeja."""
+        try:
+            self._dbus_menu = DbusMenu(
+                self._connection,
+                DBUSMENU_PATH,
+                on_show=self._action_show,
+                on_hide=self._action_hide,
+                on_quit=self._action_quit,
+            )
+            print("[SNI] Menú contextual DBusMenu creado")
+        except Exception as exc:
+            print(f"[SNI] Error al crear DBusMenu: {exc}")
+            self._dbus_menu = None
+
+    # ── Acciones del menú contextual ──────────────────────────────────────
+
+    def _action_show(self):
+        """Muestra la ventana principal (opción «Abrir» del menú)."""
+        self.show_window()
+
+    def _action_hide(self):
+        """Oculta la ventana principal (opción «Ocultar» del menú)."""
+        try:
+            self._window.hide()
+        except Exception:
+            pass
+
+    def _action_quit(self):
+        """Cierra la aplicación (opción «Salir» del menú)."""
+        self._app.activate_action("quit", None)
 
     def _on_name_lost(self, connection, name):
         """Callback cuando se pierde el nombre D-Bus."""
@@ -373,6 +417,9 @@ class StatusNotifierItem:
 
     def cleanup(self):
         """Limpia recursos D-Bus al cerrar."""
+        if self._dbus_menu is not None:
+            self._dbus_menu.cleanup()
+            self._dbus_menu = None
         if self._owner_id != 0:
             try:
                 Gio.bus_unown_name(self._owner_id)
