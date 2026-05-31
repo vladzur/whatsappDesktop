@@ -14,7 +14,8 @@
       support, desktop notifications, dark mode, and media download handling.
     </p>
     <ul>
-      <li>System tray icon with unread message indicator</li>
+      <li>System tray icon with context menu (Show / Hide / Quit)</li>
+      <li>Unread message badge on the tray icon</li>
       <li>Desktop notifications via libnotify</li>
       <li>Media downloads to ~/Downloads</li>
       <li>Wayland and X11 support</li>
@@ -33,6 +34,15 @@
   <url type="homepage">https://github.com/vladzur/whatsappDesktop</url>
   <url type="bugtracker">https://github.com/vladzur/whatsappDesktop/issues</url>
   <releases>
+    <release version="1.1.0" date="2026-05-31">
+      <description>
+        <p>New: right-clicking the system tray icon now shows a context menu
+           with three options: Show (bring the window to the foreground),
+           Hide (minimize to tray), and Quit (close the application).
+           Implemented via the com.canonical.dbusmenu D-Bus protocol,
+           compatible with GNOME Shell's AppIndicator extension.</p>
+      </description>
+    </release>
     <release version="1.0.10" date="2026-05-29">
       <description>
         <p>Fix: document downloads (Word, Excel, PDF, etc.) now work correctly.
@@ -40,7 +50,6 @@
            to the system browser, which caused a "Launch cancelled" error.</p>
       </description>
     </release>
-    <release version="1.0.6" date="2026-05-26"/>
   </releases>
   <content_rating type="oars-1.1"/>
 </component>
