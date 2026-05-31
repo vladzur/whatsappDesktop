@@ -249,33 +249,42 @@ class DbusMenu:
 
     # ── GetLayout ────────────────────────────────────────────────────────
 
-    def _build_item_variant(self, item_id: int, label, icon, is_sep: bool,
-                            children: list) -> GLib.Variant:
-        """Construye la variante (ia{sv}av) para un ítem."""
+    def _build_node(self, item_id: int, label, icon, is_sep: bool,
+                    child_nodes: list) -> GLib.Variant:
+        """Construye un nodo (ia{sv}av) de forma segura.
+
+        Cada hijo debe ser un GLib.Variant de tipo (ia{sv}av).
+        Se boxea con new_variant() antes de meterlo en el array av.
+        """
         props = _make_item_props(item_id, label, icon, is_sep)
-        props_variant = GLib.Variant("a{sv}", props)
-        children_variant = GLib.Variant("av", [
-            GLib.Variant("v", c) for c in children
-        ])
-        return GLib.Variant("(ia{sv}av)", (item_id, props, children_variant))
+        # Boxear cada hijo como variante v antes de construir el array av
+        boxed = [GLib.Variant.new_variant(c) for c in child_nodes]
+        # Construir el array av explícitamente para que PyGObject conozca el tipo
+        children_av = GLib.Variant("av", boxed)
+        # Construir el nodo pieza a pieza para evitar la ambigüedad de los slots
+        id_v   = GLib.Variant("i", item_id)
+        props_v = GLib.Variant("a{sv}", props)
+        return GLib.Variant.new_tuple(id_v, props_v, children_av)
 
     def _get_layout(self, params, invocation):
-        parent_id, depth, _props = params.unpack()
+        _parent_id, _depth, _prop_names = params.unpack()
 
-        # Raíz: id=0, contiene todos los ítems
-        children = []
+        # Construir cada ítem hijo (sin hijos propios)
+        child_nodes = []
         for (item_id, label, icon, is_sep) in self._items:
-            child = self._build_item_variant(item_id, label, icon, is_sep, [])
-            children.append(GLib.Variant("v", child))
+            node = self._build_node(item_id, label, icon, is_sep, [])
+            child_nodes.append(node)
 
-        root_props: dict = {
-            "children-display": GLib.Variant("s", "submenu"),
-        }
-        root = GLib.Variant(
-            "(ia{sv}av)",
-            (0, root_props, children),
-        )
-        invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self._revision, root)))
+        # Nodo raíz id=0
+        root_props = {"children-display": GLib.Variant("s", "submenu")}
+        root_id_v    = GLib.Variant("i", 0)
+        root_props_v = GLib.Variant("a{sv}", root_props)
+        boxed_children = [GLib.Variant.new_variant(n) for n in child_nodes]
+        children_av = GLib.Variant("av", boxed_children)
+        root = GLib.Variant.new_tuple(root_id_v, root_props_v, children_av)
+
+        revision_v = GLib.Variant("u", self._revision)
+        invocation.return_value(GLib.Variant.new_tuple(revision_v, root))
 
     # ── GetGroupProperties ───────────────────────────────────────────────
 
