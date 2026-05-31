@@ -37,7 +37,7 @@
             "buildsystem": "simple",
             "build-options": {
                 "env": {
-                    "WHATSAPP_DESK_VERSION": "1.1.0"
+                    "WHATSAPP_DESK_VERSION": "1.1.1"
                 }
             },
             "build-commands": [
