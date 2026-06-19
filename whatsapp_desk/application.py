@@ -182,3 +182,6 @@ def main():
     """Punto de entrada principal de la aplicación."""
     app = WhatsAppDeskApplication()
     return app.run(sys.argv)
+
+if __name__ == "__main__":
+    sys.exit(main())
