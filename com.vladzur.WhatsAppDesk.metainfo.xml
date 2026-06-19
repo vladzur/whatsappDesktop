@@ -34,6 +34,11 @@
   <url type="homepage">https://github.com/vladzur/whatsappDesktop</url>
   <url type="bugtracker">https://github.com/vladzur/whatsappDesktop/issues</url>
   <releases>
+    <release version="1.1.2" date="2026-06-19">
+      <description>
+        <p>Fix: GNOME AppIndicator infinite loop on right click caused by double-wrapped DBusMenu variants.</p>
+      </description>
+    </release>
     <release version="1.1.1" date="2026-05-31">
       <description>
         <p>Fix: the tray context menu now displays correctly.

@@ -269,7 +269,7 @@ class StatusNotifierItem:
             self._on_secondary_activate()
             invocation.return_value(None)
         elif method_name == "ContextMenu":
-            invocation.return_value(GLib.Variant("(o)", ("/NO_DBUSMENU",)))
+            invocation.return_value(GLib.Variant("(o)", (DBUSMENU_PATH,)))
         elif method_name == "Scroll":
             invocation.return_value(None)
         else:
@@ -289,8 +289,8 @@ class StatusNotifierItem:
             "IconName": GLib.Variant("s", self._current_icon),
             "IconThemePath": GLib.Variant("s", "" if IN_FLATPAK else ICON_THEME_DIR),
             # ItemIsMenu=True indica que el clic primario también abre el menú.
-            # Algunos entornos (KDE) lo usan; GNOME lo ignora.
-            "ItemIsMenu": GLib.Variant("b", True),
+            # Algunos entornos (KDE) lo usan; GNOME lo usa para ignorar Activate.
+            "ItemIsMenu": GLib.Variant("b", False),
             "Menu": GLib.Variant("o", DBUSMENU_PATH),
         }
         return props.get(key)
