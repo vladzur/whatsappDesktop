@@ -18,3 +18,4 @@ dist/
 .flatpak-build/
 .flatpak-builder/
 *.flatpak
+build-aux/.local-manifest.json
