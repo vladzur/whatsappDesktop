@@ -4,14 +4,25 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión del release (ej: 1.2.3). Dejar vacío para auto-detectar desde el último tag.'
+        required: false
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # ── Job 1: Bundle .flatpak adjunto al release ──
   bundle:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -21,15 +32,20 @@ jobs:
           fetch-tags: true
 
       - name: Extract version from tag
+        env:
+          DISPATCH_VERSION: ${{ inputs.version || '' }}
         run: |
-          # Para release trigger: github.ref_name = "v1.0.8"
-          # Para workflow_dispatch: github.ref_name = branch name
-          REF="${{ github.ref_name }}"
-          if [[ "$REF" =~ ^v[0-9] ]]; then
-            VERSION="${REF#v}"
+          if [[ -n "$DISPATCH_VERSION" ]]; then
+            # Versión especificada manualmente (workflow_dispatch)
+            VERSION="${DISPATCH_VERSION#v}"
           else
-            # Fallback: usar el último tag del repo
-            VERSION="$(git describe --tags --abbrev=0 | sed 's/^v//')"
+            REF="${{ github.ref_name }}"
+            if [[ "$REF" =~ ^v[0-9] ]]; then
+              VERSION="${REF#v}"
+            else
+              # Fallback: usar el último tag del repo
+              VERSION="$(git describe --tags --abbrev=0 | sed 's/^v//')"
+            fi
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "==> Versión detectada: $VERSION"
@@ -74,9 +90,10 @@ jobs:
             stable
 
       - name: Upload Flatpak bundle to release
-        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: v${{ env.VERSION }}
           files: whatsapp-desk.flatpak
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,12 +113,18 @@ jobs:
           fetch-tags: true
 
       - name: Extract version from tag
+        env:
+          DISPATCH_VERSION: ${{ inputs.version || '' }}
         run: |
-          REF="${{ github.ref_name }}"
-          if [[ "$REF" =~ ^v[0-9] ]]; then
-            VERSION="${REF#v}"
+          if [[ -n "$DISPATCH_VERSION" ]]; then
+            VERSION="${DISPATCH_VERSION#v}"
           else
-            VERSION="$(git describe --tags --abbrev=0 | sed 's/^v//')"
+            REF="${{ github.ref_name }}"
+            if [[ "$REF" =~ ^v[0-9] ]]; then
+              VERSION="${REF#v}"
+            else
+              VERSION="$(git describe --tags --abbrev=0 | sed 's/^v//')"
+            fi
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "==> Versión detectada: $VERSION"
@@ -160,3 +183,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        continue-on-error: true
