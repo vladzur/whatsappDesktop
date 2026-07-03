@@ -11,7 +11,7 @@
 # Requisitos:
 #   - flatpak >= 1.14
 #   - flatpak-builder
-#   - Runtime GNOME 49 (se instala automáticamente si no está)
+#   - Runtime GNOME 50 (se instala automáticamente si no está)
 # ============================================================
 
 set -euo pipefail
@@ -28,10 +28,10 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 VERSION="$(git -C "$PROJECT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo '0.0.0-dev')"
 echo "==> Versión detectada: $VERSION"
 
-echo "==> Verificando runtime GNOME 49..."
-flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*49" || {
-    echo "    Instalando runtime GNOME 49 (esto puede tomar unos minutos)..."
-    flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
+echo "==> Verificando runtime GNOME 50..."
+flatpak list --runtime 2>/dev/null | grep -q "org.gnome.Platform.*50" || {
+    echo "    Instalando runtime GNOME 50 (esto puede tomar unos minutos)..."
+    flatpak install --user -y flathub org.gnome.Platform/x86_64/50 org.gnome.Sdk/x86_64/50
 }
 
 cd "$PROJECT_DIR"

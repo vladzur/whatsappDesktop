@@ -33,7 +33,16 @@
   </keywords>
   <url type="homepage">https://github.com/vladzur/whatsappDesktop</url>
   <url type="bugtracker">https://github.com/vladzur/whatsappDesktop/issues</url>
+  <requires>
+    <id>org.gnome.Platform</id>
+    <version>50</version>
+  </requires>
   <releases>
+    <release version="1.2.0" date="2026-07-02">
+      <description>
+        <p>Upgrade: support for GNOME 50 runtime.</p>
+      </description>
+    </release>
     <release version="1.1.2" date="2026-06-19">
       <description>
         <p>Fix: GNOME AppIndicator infinite loop on right click caused by double-wrapped DBusMenu variants.</p>
