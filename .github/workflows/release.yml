@@ -42,9 +42,9 @@ jobs:
       - name: Add Flathub remote
         run: flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-      - name: Install GNOME 49 runtime and SDK
+      - name: Install GNOME 50 runtime and SDK
         run: |
-          flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
+          flatpak install --user -y flathub org.gnome.Platform/x86_64/50 org.gnome.Sdk/x86_64/50
 
       - name: Build Flatpak
         run: |
@@ -76,6 +76,7 @@ jobs:
       - name: Upload Flatpak bundle to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           files: whatsapp-desk.flatpak
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,9 +114,9 @@ jobs:
       - name: Add Flathub remote
         run: flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-      - name: Install GNOME 49 runtime and SDK
+      - name: Install GNOME 50 runtime and SDK
         run: |
-          flatpak install --user -y flathub org.gnome.Platform/x86_64/49 org.gnome.Sdk/x86_64/49
+          flatpak install --user -y flathub org.gnome.Platform/x86_64/50 org.gnome.Sdk/x86_64/50
 
       - name: Build Flatpak into OSTree repo
         run: |
