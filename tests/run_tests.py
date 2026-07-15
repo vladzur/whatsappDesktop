@@ -409,7 +409,7 @@ class TestNotificationManager(unittest.TestCase):
         mock_cfg = MagicMock()
         mock_cfg.get.return_value = True
         nmod.NotificationManager(mock_cfg)
-        mock_notify.init.assert_called_once_with("WhatsApp Desk")
+        mock_notify.init.assert_called_once_with("com.vladzur.WhatsAppDesk")
 
     @patch("whatsapp_desk.notifications.Notify")
     def test_init_starts_with_zero_count(self, mock_notify):

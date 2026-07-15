@@ -10,6 +10,26 @@ from whatsapp_desk.constants import WHATSAPP_URL
 from whatsapp_desk.resources.ua_chrome import CHROME_USER_AGENT
 
 
+class _BridgeNotification:
+    """Notificación sintética que emula la interfaz de WebKit.Notification.
+
+    Se usa cuando el bridge JS→Python vía ``window.webkit.messageHandlers``
+    recibe los datos de una notificación.  WebKitGTK 6.0 no emite la señal
+    ``show-notification``, así que este objeto reemplaza al
+    ``WebKit.Notification`` que el ``NotificationManager`` espera recibir.
+    """
+
+    def __init__(self, title: str, body: str):
+        self._title = title
+        self._body = body
+
+    def get_title(self) -> str:
+        return self._title
+
+    def get_body(self) -> str:
+        return self._body
+
+
 class WhatsAppWebView(WebKit.WebView):
     """WebView configurado específicamente para WhatsApp Web.
 
@@ -27,12 +47,62 @@ class WhatsAppWebView(WebKit.WebView):
         super().__init__(**kwargs)
         self._notification_manager = None
         self._setup_settings()
+        self._register_script_message_handler()
         self._inject_browser_spoof()
+        self._inject_notification_fallback()
+        self._inject_audio_mute()
         # Manejar solicitudes de permisos (micrófono, cámara, notificaciones)
         self.connect("permission-request", self._on_permission_request)
-        # Notificaciones nativas: WhatsApp Web usa la Notifications API del
-        # navegador. WebKit emite show-notification cuando eso ocurre.
+        # Notificaciones nativas (señal WebKit, puede no emitirse en 6.0)
         self.connect("show-notification", self._on_show_notification)
+
+    def _register_script_message_handler(self):
+        """Registra un message handler JS→Python para notificaciones.
+
+        WebKitGTK 6.0 no emite la señal ``show-notification`` para
+        notificaciones creadas vía JavaScript.  En su lugar, usamos
+        ``window.webkit.messageHandlers.notify.postMessage()`` para
+        enviar los datos de la notificación desde JS a Python.
+        """
+        self._user_content = self.get_user_content_manager()
+        try:
+            # Registrar el handler «notify» para que JS pueda llamar a
+            # window.webkit.messageHandlers.notify.postMessage(json)
+            try:
+                self._user_content.register_script_message_handler("notify")
+            except TypeError:
+                # WebKitGTK 2.40+ requiere el parámetro world_name
+                self._user_content.register_script_message_handler(
+                    "notify", None
+                )
+            self._user_content.connect(
+                "script-message-received::notify",
+                self._on_notify_message,
+            )
+        except Exception as exc:
+            print(f"[WebView] Error al registrar message handler: {exc}")
+
+    def _on_notify_message(self, manager, js_result):
+        """Callback del message handler JS→Python para notificaciones.
+
+        Recibe un JSON con ``title`` y ``body`` desde JavaScript y lo
+        convierte en una notificación de escritorio real vía libnotify.
+        """
+        import json
+        try:
+            raw = js_result.to_string()
+            data = json.loads(raw)
+            title = data.get("title", "WhatsApp Desk")
+            body = data.get("body", "Nuevo mensaje")
+
+            if self._notification_manager is not None:
+                # El NotificationManager espera un objeto con get_title()
+                # y get_body().  Creamos una notificación sintética ya que
+                # WebKitGTK 6.0 no emite show-notification.
+                notif = _BridgeNotification(title, body)
+                self._notification_manager.handle_webkit_notification(notif)
+        except Exception as exc:
+            print(f"[WebView] Error al procesar mensaje JS: {exc}")
 
     def _setup_settings(self):
         """Configura los ajustes del WebView para WhatsApp Web."""
@@ -143,42 +213,135 @@ class WhatsAppWebView(WebKit.WebView):
 
             // ── Notifications API ──────────────────────────────────────────
             // WhatsApp Web comprueba Notification.permission al arrancar.
-            // Si no es 'granted' deja de usar la API y no llama nunca a
+            // Si no es 'granted' deja de usar la API y nunca llama a
             // new Notification(), por lo que WebKit nunca emite show-notification.
-            // Sobreescribimos la clase para que el permiso siempre sea 'granted'
-            // y requestPermission() resuelva de forma inmediata.
+            //
+            // ESTRATEGIA: Parchear las propiedades estáticas del constructor
+            // original SIN reemplazarlo con una subclase.  Así WebKit sigue
+            // emitiendo show-notification cuando WhatsApp crea notificaciones.
+            console.log('[WhatsAppDesk] DOC_START: typeof Notification = ' + typeof Notification);
             if (typeof Notification !== 'undefined') {
-                // Guardar el constructor original por si se necesita internamente
-                const _OriginalNotification = Notification;
-
-                // Redefinir la clase Notification
-                class PatchedNotification extends _OriginalNotification {
-                    constructor(title, options) {
-                        super(title, options);
+                console.log('[WhatsAppDesk] DOC_START: perm original = ' + Notification.permission);
+                // --- permission getter (estrategia principal) ---
+                // Intentamos redefinir el descriptor de permission directamente
+                // en el constructor original.  Esto fuerza 'granted' sin
+                // tocar el constructor, por lo que show-notification se emite.
+                try {
+                    var _permDesc = Object.getOwnPropertyDescriptor(
+                        Notification, 'permission'
+                    );
+                    if (_permDesc && _permDesc.configurable !== false) {
+                        console.log('[WhatsAppDesk] DOC_START: parchando permission directamente');
+                        Object.defineProperty(Notification, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                        console.log('[WhatsAppDesk] DOC_START: perm despues de parche = ' + Notification.permission);
+                    } else {
+                        console.log('[WhatsAppDesk] DOC_START: permission NO configurable, usando wrapper');
+                        // permission no es configurable.  Creamos un wrapper
+                        // que devuelve instancias reales de Notification
+                        // (no subclases) para que show-notification se emita.
+                        throw new Error('permission no configurable');
+                    }
+                } catch (_e1) {
+                    console.log('[WhatsAppDesk] DOC_START: estrategia 1 fallo, usando wrapper. Error: ' + _e1);
+                    // --- wrapper (estrategia de respaldo) ---
+                    // El wrapper retorna instancias reales vía new _OrigN(),
+                    // por lo que WebKit emite show-notification correctamente.
+                    try {
+                        var _OrigN = window.Notification;
+                        var _WrapN = function(title, options) {
+                            return new _OrigN(title, options);
+                        };
+                        _WrapN.prototype = _OrigN.prototype;
+                        Object.defineProperty(_WrapN, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                        _WrapN.requestPermission = function() {
+                            return Promise.resolve('granted');
+                        };
+                        try {
+                            Object.defineProperty(window, 'Notification', {
+                                value: _WrapN, writable: true, configurable: true
+                            });
+                            console.log('[WhatsAppDesk] DOC_START: wrapper instalado con defineProperty');
+                        } catch (_ignored) {
+                            window.Notification = _WrapN;
+                            console.log('[WhatsAppDesk] DOC_START: wrapper instalado con asignacion directa');
+                        }
+                        console.log('[WhatsAppDesk] DOC_START: perm despues de wrapper = ' + Notification.permission);
+                    } catch (_e2) {
+                        console.log('[WhatsAppDesk] DOC_START: wrapper tambien fallo: ' + _e2);
                     }
                 }
 
-                // Propiedad estática: permission = 'granted'
-                Object.defineProperty(PatchedNotification, 'permission', {
-                    get: function() { return 'granted'; },
-                    configurable: true
-                });
-
-                // requestPermission siempre resuelve con 'granted'
-                PatchedNotification.requestPermission = function() {
-                    return Promise.resolve('granted');
-                };
-
-                // Reemplazar el constructor global
-                try {
-                    Object.defineProperty(window, 'Notification', {
-                        value: PatchedNotification,
-                        writable: true,
-                        configurable: true
-                    });
-                } catch(e) {
-                    window.Notification = PatchedNotification;
+                // --- Bridge JS->Python via message handlers ---
+                // WebKitGTK 6.0 NO emite la señal show-notification para
+                // notificaciones creadas por JS.  En su lugar, interceptamos
+                // el constructor Notification para enviar los datos a Python
+                // via window.webkit.messageHandlers.notify.postMessage().
+                if (window.webkit && window.webkit.messageHandlers &&
+                    window.webkit.messageHandlers.notify) {
+                    console.log('[WhatsAppDesk] DOC_START: instalando bridge message handler');
+                    var _NotifyOrig = Notification;
+                    var _NotifyBridge = function(title, options) {
+                        try {
+                            var body = (options && options.body) ? options.body : '';
+                            window.webkit.messageHandlers.notify.postMessage(
+                                JSON.stringify({title: title, body: body})
+                            );
+                            console.log('[WhatsAppDesk] Bridge: notificacion enviada a Python');
+                        } catch(_bridgeErr) {
+                            console.log('[WhatsAppDesk] Bridge: error postMessage: ' + _bridgeErr);
+                        }
+                        // Crear la notificación real para que WhatsApp no falle
+                        return new _NotifyOrig(title, options);
+                    };
+                    _NotifyBridge.prototype = _NotifyOrig.prototype;
+                    _NotifyBridge.permission = 'granted';
+                    _NotifyBridge.requestPermission = function() {
+                        return Promise.resolve('granted');
+                    };
+                    // Reemplazar window.Notification con el bridge
+                    try {
+                        Object.defineProperty(window, 'Notification', {
+                            value: _NotifyBridge, writable: true, configurable: true
+                        });
+                    } catch(_bri2) {
+                        window.Notification = _NotifyBridge;
+                    }
+                    console.log('[WhatsAppDesk] DOC_START: bridge instalado, perm=' + Notification.permission);
                 }
+
+
+                // --- requestPermission ---
+                // Siempre intentamos parchear requestPermission en el
+                // constructor, tanto si usamos la estrategia principal como
+                // la de respaldo.
+                try {
+                    Notification.requestPermission = function() {
+                        return Promise.resolve('granted');
+                    };
+                } catch (_e3) {}
+            }
+
+            // ── Permissions API ──────────────────────────────────────────
+            // WhatsApp Web moderno también verifica el permiso de notificación
+            // mediante navigator.permissions.query({name:'notifications'}).
+            if (navigator.permissions && navigator.permissions.query) {
+                var _origQuery = navigator.permissions.query.bind(
+                    navigator.permissions
+                );
+                navigator.permissions.query = function(desc) {
+                    if (desc && desc.name === 'notifications') {
+                        return Promise.resolve({
+                            state: 'granted', onchange: null
+                        });
+                    }
+                    return _origQuery(desc);
+                };
             }
         })();
         """ % CHROME_USER_AGENT
@@ -186,6 +349,180 @@ class WhatsAppWebView(WebKit.WebView):
         user_content = self.get_user_content_manager()
         user_script = WebKit.UserScript.new(
             spoof_script,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.START,
+        )
+        user_content.add_script(user_script)
+
+    def _inject_notification_fallback(self):
+        """Reaplica el parche de Notification y Permissions API en DOCUMENT_END.
+
+        En WebKitGTK 6.0, las bindings de JavaScript pueden no estar
+        completamente inicializadas en DOCUMENT_START.  Esta inyección de
+        respaldo garantiza que Notification.permission esté forzado a
+        'granted' aunque el parche de DOCUMENT_START no haya funcionado.
+        """
+        fallback_script = """
+        (function() {
+            console.log('[WhatsAppDesk] DOC_END: reaplicando parche');
+            // Reaplicar parche de Notification.permission si no está activo
+            if (typeof Notification !== 'undefined' &&
+                Notification.permission !== 'granted') {
+                console.log('[WhatsAppDesk] DOC_END: permission aun no es granted, reaplicando...');
+                // Intentar parche directo primero
+                var parched = false;
+                try {
+                    var permDesc = Object.getOwnPropertyDescriptor(
+                        Notification, 'permission'
+                    );
+                    if (permDesc && permDesc.configurable !== false) {
+                        Object.defineProperty(Notification, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                        parched = true;
+                        console.log('[WhatsAppDesk] DOC_END: parche directo aplicado');
+                    }
+                } catch (_e) {
+                    console.log('[WhatsAppDesk] DOC_END: parche directo fallo: ' + _e);
+                }
+                // Si el parche directo no funcionó, intentar wrapper
+                if (!parched) {
+                    try {
+                        var _OrigN2 = window.Notification;
+                        var _WrapN2 = function(title, options) {
+                            return new _OrigN2(title, options);
+                        };
+                        _WrapN2.prototype = _OrigN2.prototype;
+                        Object.defineProperty(_WrapN2, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                        _WrapN2.requestPermission = function() {
+                            return Promise.resolve('granted');
+                        };
+                        try {
+                            Object.defineProperty(window, 'Notification', {
+                                value: _WrapN2, writable: true, configurable: true
+                            });
+                        } catch (_ignored2) {
+                            window.Notification = _WrapN2;
+                        }
+                        console.log('[WhatsAppDesk] DOC_END: wrapper aplicado');
+                    } catch (_e2) {
+                        console.log('[WhatsAppDesk] DOC_END: wrapper tambien fallo: ' + _e2);
+                    }
+                }
+                try {
+                    Notification.requestPermission = function() {
+                        return Promise.resolve('granted');
+                    };
+                } catch (_e) {}
+                console.log('[WhatsAppDesk] DOC_END: permission final = ' + Notification.permission);
+            } else if (typeof Notification !== 'undefined') {
+                console.log('[WhatsAppDesk] DOC_END: permission ya es granted, OK');
+            }
+
+            // Reaplicar parche de Permissions API
+            if (navigator.permissions && navigator.permissions.query) {
+                var _origQf = navigator.permissions.query.bind(
+                    navigator.permissions
+                );
+                navigator.permissions.query = function(desc) {
+                    if (desc && desc.name === 'notifications') {
+                        return Promise.resolve({
+                            state: 'granted', onchange: null
+                        });
+                    }
+                    return _origQf(desc);
+                };
+            }
+
+            // Instalar bridge JS->Python via message handlers
+            // (puede que en DOC_START el handler no estuviera listo)
+            if (window.webkit && window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.notify &&
+                typeof Notification !== 'undefined') {
+                console.log('[WhatsAppDesk] DOC_END: instalando bridge message handler');
+                var _NO = Notification;
+                var _NB = function(title, options) {
+                    try {
+                        var b = (options && options.body) ? options.body : '';
+                        window.webkit.messageHandlers.notify.postMessage(
+                            JSON.stringify({title: title, body: b})
+                        );
+                    } catch(_be) {}
+                    return new _NO(title, options);
+                };
+                _NB.prototype = _NO.prototype;
+                _NB.permission = 'granted';
+                _NB.requestPermission = function() { return Promise.resolve('granted'); };
+                try {
+                    Object.defineProperty(window, 'Notification', {
+                        value: _NB, writable: true, configurable: true
+                    });
+                } catch(_bi) {
+                    window.Notification = _NB;
+                }
+                console.log('[WhatsAppDesk] DOC_END: bridge instalado');
+            }
+        })();
+        """
+
+        user_content = self.get_user_content_manager()
+        user_script = WebKit.UserScript.new(
+            fallback_script,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.END,
+        )
+        user_content.add_script(user_script)
+
+    def _inject_audio_mute(self):
+        """Suprime los sonidos de notificación de WhatsApp Web.
+
+        WhatsApp reproduce sonidos cortos al recibir mensajes.  GNOME detecta
+        esa reproducción vía PipeWire y muestra un «reproductor multimedia»
+        fantasma en el área de notificaciones en lugar de la burbuja real.
+
+        Esta inyección silencia los elementos <audio> que coinciden con
+        patrones de URL típicos de sonidos de notificación.  Las notas de
+        voz y las llamadas (WebRTC) NO se ven afectadas porque usan
+        mecanismos diferentes.
+        """
+        audio_mute_script = """
+        (function() {
+            // Interceptar HTMLAudioElement.play() para silenciar sonidos
+            // de notificación por patrón de URL.
+            var _origPlay = HTMLAudioElement.prototype.play;
+            HTMLAudioElement.prototype.play = function() {
+                var src = (this.src || '').toLowerCase();
+                var isNotif = (
+                    /notification|notif|alert|new_msg|msg_received/i.test(src)
+                );
+                if (isNotif) {
+                    try { this.volume = 0; } catch (_e) {}
+                }
+                return _origPlay.call(this).catch(function() {});
+            };
+
+            // Interceptar el constructor Audio() para silenciar por URL
+            if (typeof Audio !== 'undefined') {
+                var _OrigAudio = Audio;
+                window.Audio = function(src) {
+                    var instance = new _OrigAudio(src);
+                    if (src && /notification|notif/i.test(src)) {
+                        try { instance.volume = 0; } catch (_e) {}
+                    }
+                    return instance;
+                };
+                window.Audio.prototype = _OrigAudio.prototype;
+            }
+        })();
+        """
+
+        user_content = self.get_user_content_manager()
+        user_script = WebKit.UserScript.new(
+            audio_mute_script,
             WebKit.UserContentInjectedFrames.ALL_FRAMES,
             WebKit.UserScriptInjectionTime.START,
         )

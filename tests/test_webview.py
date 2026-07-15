@@ -106,3 +106,156 @@ def test_load_whatsapp_loads_correct_url(mock_webkit):
 
     wv.load_whatsapp()
     wv.load_uri.assert_called_once_with("https://web.whatsapp.com/")
+
+
+# ── Inyección JS de notificaciones ────────────────────────────────────────
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_spoof_script_contains_permissions_api_patch(mock_webkit):
+    """El script de DOCUMENT_START debe parchear navigator.permissions.query."""
+    mock_webkit.WebView.__init__.return_value = None
+    mock_webkit.WebView.get_settings.return_value = MagicMock()
+    mock_webkit.UserScriptInjectionTime.START = "start"
+    mock_webkit.UserContentInjectedFrames.ALL_FRAMES = "all"
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.get_settings = MagicMock()
+    wv.set_settings = MagicMock()
+    wv._setup_settings = MagicMock()
+    wv.connect = MagicMock()
+
+    user_content = MagicMock()
+    wv.get_user_content_manager = MagicMock(return_value=user_content)
+
+    # Llamar al método real de inyección
+    WhatsAppWebView._inject_browser_spoof(wv)
+
+    # Obtener el script inyectado
+    assert user_content.add_script.call_count >= 1
+    script_arg = user_content.add_script.call_args_list[0][0][0]
+    assert "navigator.permissions" in script_arg
+    assert "permissions.query" in script_arg
+
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_spoof_script_does_not_use_patched_notification_subclass(mock_webkit):
+    """El spoof NO debe usar PatchedNotification (extender la clase rompe
+    la señal show-notification en WebKitGTK 6.0)."""
+    mock_webkit.WebView.__init__.return_value = None
+    mock_webkit.WebView.get_settings.return_value = MagicMock()
+    mock_webkit.UserScriptInjectionTime.START = "start"
+    mock_webkit.UserContentInjectedFrames.ALL_FRAMES = "all"
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.get_settings = MagicMock()
+    wv.set_settings = MagicMock()
+    wv._setup_settings = MagicMock()
+    wv.connect = MagicMock()
+
+    user_content = MagicMock()
+    wv.get_user_content_manager = MagicMock(return_value=user_content)
+
+    WhatsAppWebView._inject_browser_spoof(wv)
+
+    # El script no debe contener PatchedNotification
+    script_arg = user_content.add_script.call_args_list[0][0][0]
+    assert "PatchedNotification" not in script_arg
+    # Debe parchear directamente la propiedad permission
+    assert "Object.defineProperty(Notification, 'permission'" in script_arg or \
+        "Object.defineProperty(window, 'Notification'" in script_arg
+
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_spoof_script_contains_message_handler_bridge(mock_webkit):
+    """El spoof debe usar window.webkit.messageHandlers.notify.postMessage()
+    como puente JS→Python en lugar de depender de show-notification."""
+    mock_webkit.WebView.__init__.return_value = None
+    mock_webkit.WebView.get_settings.return_value = MagicMock()
+    mock_webkit.UserScriptInjectionTime.START = "start"
+    mock_webkit.UserContentInjectedFrames.ALL_FRAMES = "all"
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.get_settings = MagicMock()
+    wv.set_settings = MagicMock()
+    wv._setup_settings = MagicMock()
+    wv.connect = MagicMock()
+
+    user_content = MagicMock()
+    wv.get_user_content_manager = MagicMock(return_value=user_content)
+
+    WhatsAppWebView._inject_browser_spoof(wv)
+
+    script_arg = user_content.add_script.call_args_list[0][0][0]
+    assert "messageHandlers.notify.postMessage" in script_arg
+
+
+# ── _BridgeNotification ────────────────────────────────────────────────────
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_bridge_notification_get_title(mock_webkit):
+    """_BridgeNotification.get_title() debe devolver el título."""
+    from whatsapp_desk.webview import _BridgeNotification
+    bn = _BridgeNotification("Título", "Cuerpo")
+    assert bn.get_title() == "Título"
+
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_bridge_notification_get_body(mock_webkit):
+    """_BridgeNotification.get_body() debe devolver el cuerpo."""
+    from whatsapp_desk.webview import _BridgeNotification
+    bn = _BridgeNotification("Título", "Cuerpo del mensaje")
+    assert bn.get_body() == "Cuerpo del mensaje"
+
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_notification_fallback_injects_at_document_end(mock_webkit):
+    """El fallback de notificación debe inyectarse en DOCUMENT_END."""
+    mock_webkit.WebView.__init__.return_value = None
+    mock_webkit.WebView.get_settings.return_value = MagicMock()
+    mock_webkit.UserScriptInjectionTime.START = "start"
+    mock_webkit.UserScriptInjectionTime.END = "end"
+    mock_webkit.UserContentInjectedFrames.ALL_FRAMES = "all"
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.get_settings = MagicMock()
+    wv.set_settings = MagicMock()
+    wv._setup_settings = MagicMock()
+    wv.connect = MagicMock()
+
+    user_content = MagicMock()
+    wv.get_user_content_manager = MagicMock(return_value=user_content)
+
+    WhatsAppWebView._inject_notification_fallback(wv)
+
+    assert user_content.add_script.call_count == 1
+    call_args = user_content.add_script.call_args
+    script = call_args[0][0]
+    injection_time = call_args[0][2]
+    assert injection_time == "end"
+    assert "Notification.permission !== 'granted'" in script
+    assert "permissions.query" in script
+
+
+@patch("whatsapp_desk.webview.WebKit")
+def test_audio_mute_injects_html_audio_element_patch(mock_webkit):
+    """La inyección de muteo debe interceptar HTMLAudioElement.play()."""
+    mock_webkit.WebView.__init__.return_value = None
+    mock_webkit.WebView.get_settings.return_value = MagicMock()
+    mock_webkit.UserScriptInjectionTime.START = "start"
+    mock_webkit.UserContentInjectedFrames.ALL_FRAMES = "all"
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.get_settings = MagicMock()
+    wv.set_settings = MagicMock()
+    wv._setup_settings = MagicMock()
+    wv.connect = MagicMock()
+
+    user_content = MagicMock()
+    wv.get_user_content_manager = MagicMock(return_value=user_content)
+
+    WhatsAppWebView._inject_audio_mute(wv)
+
+    assert user_content.add_script.call_count == 1
+    script_arg = user_content.add_script.call_args_list[0][0][0]
+    assert "HTMLAudioElement.prototype.play" in script_arg
+    assert "notification" in script_arg.lower()
