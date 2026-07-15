@@ -28,6 +28,8 @@ class WhatsAppWebView(WebKit.WebView):
         self._notification_manager = None
         self._setup_settings()
         self._inject_browser_spoof()
+        self._inject_notification_fallback()
+        self._inject_audio_mute()
         # Manejar solicitudes de permisos (micrófono, cámara, notificaciones)
         self.connect("permission-request", self._on_permission_request)
         # Notificaciones nativas: WhatsApp Web usa la Notifications API del
@@ -143,42 +145,85 @@ class WhatsAppWebView(WebKit.WebView):
 
             // ── Notifications API ──────────────────────────────────────────
             // WhatsApp Web comprueba Notification.permission al arrancar.
-            // Si no es 'granted' deja de usar la API y no llama nunca a
+            // Si no es 'granted' deja de usar la API y nunca llama a
             // new Notification(), por lo que WebKit nunca emite show-notification.
-            // Sobreescribimos la clase para que el permiso siempre sea 'granted'
-            // y requestPermission() resuelva de forma inmediata.
+            //
+            // ESTRATEGIA: Parchear las propiedades estáticas del constructor
+            // original SIN reemplazarlo con una subclase.  Así WebKit sigue
+            // emitiendo show-notification cuando WhatsApp crea notificaciones.
             if (typeof Notification !== 'undefined') {
-                // Guardar el constructor original por si se necesita internamente
-                const _OriginalNotification = Notification;
-
-                // Redefinir la clase Notification
-                class PatchedNotification extends _OriginalNotification {
-                    constructor(title, options) {
-                        super(title, options);
-                    }
-                }
-
-                // Propiedad estática: permission = 'granted'
-                Object.defineProperty(PatchedNotification, 'permission', {
-                    get: function() { return 'granted'; },
-                    configurable: true
-                });
-
-                // requestPermission siempre resuelve con 'granted'
-                PatchedNotification.requestPermission = function() {
-                    return Promise.resolve('granted');
-                };
-
-                // Reemplazar el constructor global
+                // --- permission getter (estrategia principal) ---
+                // Intentamos redefinir el descriptor de permission directamente
+                // en el constructor original.  Esto fuerza 'granted' sin
+                // tocar el constructor, por lo que show-notification se emite.
                 try {
-                    Object.defineProperty(window, 'Notification', {
-                        value: PatchedNotification,
-                        writable: true,
-                        configurable: true
-                    });
-                } catch(e) {
-                    window.Notification = PatchedNotification;
+                    var _permDesc = Object.getOwnPropertyDescriptor(
+                        Notification, 'permission'
+                    );
+                    if (_permDesc && _permDesc.configurable !== false) {
+                        Object.defineProperty(Notification, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                    } else {
+                        // permission no es configurable.  Creamos un wrapper
+                        // que devuelve instancias reales de Notification
+                        // (no subclases) para que show-notification se emita.
+                        throw new Error('permission no configurable');
+                    }
+                } catch (_e1) {
+                    // --- wrapper (estrategia de respaldo) ---
+                    // El wrapper retorna instancias reales vía new _OrigN(),
+                    // por lo que WebKit emite show-notification correctamente.
+                    try {
+                        var _OrigN = window.Notification;
+                        var _WrapN = function(title, options) {
+                            return new _OrigN(title, options);
+                        };
+                        _WrapN.prototype = _OrigN.prototype;
+                        Object.defineProperty(_WrapN, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                        _WrapN.requestPermission = function() {
+                            return Promise.resolve('granted');
+                        };
+                        try {
+                            Object.defineProperty(window, 'Notification', {
+                                value: _WrapN, writable: true, configurable: true
+                            });
+                        } catch (_ignored) {
+                            window.Notification = _WrapN;
+                        }
+                    } catch (_e2) {}
                 }
+
+                // --- requestPermission ---
+                // Siempre intentamos parchear requestPermission en el
+                // constructor, tanto si usamos la estrategia principal como
+                // la de respaldo.
+                try {
+                    Notification.requestPermission = function() {
+                        return Promise.resolve('granted');
+                    };
+                } catch (_e3) {}
+            }
+
+            // ── Permissions API ──────────────────────────────────────────
+            // WhatsApp Web moderno también verifica el permiso de notificación
+            // mediante navigator.permissions.query({name:'notifications'}).
+            if (navigator.permissions && navigator.permissions.query) {
+                var _origQuery = navigator.permissions.query.bind(
+                    navigator.permissions
+                );
+                navigator.permissions.query = function(desc) {
+                    if (desc && desc.name === 'notifications') {
+                        return Promise.resolve({
+                            state: 'granted', onchange: null
+                        });
+                    }
+                    return _origQuery(desc);
+                };
             }
         })();
         """ % CHROME_USER_AGENT
@@ -186,6 +231,113 @@ class WhatsAppWebView(WebKit.WebView):
         user_content = self.get_user_content_manager()
         user_script = WebKit.UserScript.new(
             spoof_script,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.START,
+        )
+        user_content.add_script(user_script)
+
+    def _inject_notification_fallback(self):
+        """Reaplica el parche de Notification y Permissions API en DOCUMENT_END.
+
+        En WebKitGTK 6.0, las bindings de JavaScript pueden no estar
+        completamente inicializadas en DOCUMENT_START.  Esta inyección de
+        respaldo garantiza que Notification.permission esté forzado a
+        'granted' aunque el parche de DOCUMENT_START no haya funcionado.
+        """
+        fallback_script = """
+        (function() {
+            // Reaplicar parche de Notification.permission si no está activo
+            if (typeof Notification !== 'undefined' &&
+                Notification.permission !== 'granted') {
+                try {
+                    var permDesc = Object.getOwnPropertyDescriptor(
+                        Notification, 'permission'
+                    );
+                    if (permDesc && permDesc.configurable !== false) {
+                        Object.defineProperty(Notification, 'permission', {
+                            get: function() { return 'granted'; },
+                            configurable: true
+                        });
+                    }
+                } catch (_e) {}
+                try {
+                    Notification.requestPermission = function() {
+                        return Promise.resolve('granted');
+                    };
+                } catch (_e) {}
+            }
+
+            // Reaplicar parche de Permissions API
+            if (navigator.permissions && navigator.permissions.query) {
+                var _origQ = navigator.permissions.query.bind(
+                    navigator.permissions
+                );
+                navigator.permissions.query = function(desc) {
+                    if (desc && desc.name === 'notifications') {
+                        return Promise.resolve({
+                            state: 'granted', onchange: null
+                        });
+                    }
+                    return _origQ(desc);
+                };
+            }
+        })();
+        """
+
+        user_content = self.get_user_content_manager()
+        user_script = WebKit.UserScript.new(
+            fallback_script,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.END,
+        )
+        user_content.add_script(user_script)
+
+    def _inject_audio_mute(self):
+        """Suprime los sonidos de notificación de WhatsApp Web.
+
+        WhatsApp reproduce sonidos cortos al recibir mensajes.  GNOME detecta
+        esa reproducción vía PipeWire y muestra un «reproductor multimedia»
+        fantasma en el área de notificaciones en lugar de la burbuja real.
+
+        Esta inyección silencia los elementos <audio> que coinciden con
+        patrones de URL típicos de sonidos de notificación.  Las notas de
+        voz y las llamadas (WebRTC) NO se ven afectadas porque usan
+        mecanismos diferentes.
+        """
+        audio_mute_script = """
+        (function() {
+            // Interceptar HTMLAudioElement.play() para silenciar sonidos
+            // de notificación por patrón de URL.
+            var _origPlay = HTMLAudioElement.prototype.play;
+            HTMLAudioElement.prototype.play = function() {
+                var src = (this.src || '').toLowerCase();
+                var isNotif = (
+                    /notification|notif|alert|new_msg|msg_received/i.test(src)
+                );
+                if (isNotif) {
+                    try { this.volume = 0; } catch (_e) {}
+                }
+                return _origPlay.call(this).catch(function() {});
+            };
+
+            // Interceptar el constructor Audio() para silenciar por URL
+            if (typeof Audio !== 'undefined') {
+                var _OrigAudio = Audio;
+                window.Audio = function(src) {
+                    var instance = new _OrigAudio(src);
+                    if (src && /notification|notif/i.test(src)) {
+                        try { instance.volume = 0; } catch (_e) {}
+                    }
+                    return instance;
+                };
+                window.Audio.prototype = _OrigAudio.prototype;
+            }
+        })();
+        """
+
+        user_content = self.get_user_content_manager()
+        user_script = WebKit.UserScript.new(
+            audio_mute_script,
             WebKit.UserContentInjectedFrames.ALL_FRAMES,
             WebKit.UserScriptInjectionTime.START,
         )
