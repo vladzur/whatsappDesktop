@@ -38,6 +38,56 @@
     <version>50</version>
   </requires>
   <releases>
+    <release version="1.2.5" date="2026-07-15">
+      <description>
+        <p>Fix: implemented JS→Python bridge via window.webkit.messageHandlers
+           for desktop notifications. WebKitGTK 6.0 does not emit the
+           show-notification signal, so notifications are now forwarded directly
+           from JavaScript to Python.</p>
+        <ul>
+          <li>Notifications are bridged from JavaScript to Python via
+              WebKit UserContentManager message handlers, bypassing the
+              non-functional show-notification signal</li>
+          <li>Removed dead code: tray.py (legacy AyatanaAppIndicator3, GTK3-only)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.2.4" date="2026-07-15">
+      <description>
+        <p>Fix: desktop notifications now work correctly. The Notification
+           permission is patched directly on the original constructor instead
+           of using a subclass that prevented WebKit from recognizing
+           notification instances.</p>
+        <ul>
+          <li>Notification permission patching uses direct property redefinition
+              instead of subclassing</li>
+          <li>Added Permissions API query interception for modern WhatsApp Web</li>
+          <li>Added DOCUMENT_END fallback for notification patch re-application</li>
+          <li>WhatsApp notification sounds are suppressed to prevent a phantom
+              media player in GNOME Shell</li>
+          <li>Fixed desktop-entry hint for proper notification-to-app association</li>
+          <li>Added urgency and category hints for correct GNOME notification display</li>
+          <li>Added X-GNOME-UsesNotifications to the desktop entry file</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.2.3" date="2026-07-03">
+      <description>
+        <p>Fix: upgrade release workflow — Node 24, reliable tag resolution,
+           and CI best practices.</p>
+      </description>
+    </release>
+    <release version="1.2.2" date="2026-07-03">
+      <description>
+        <p>Chore: upgrade GitHub Actions to latest versions.</p>
+      </description>
+    </release>
+    <release version="1.2.1" date="2026-07-03">
+      <description>
+        <p>Fix: update CI to GNOME 50 runtime and add explicit tag_name
+           to release action.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-07-02">
       <description>
         <p>Upgrade: support for GNOME 50 runtime.</p>
