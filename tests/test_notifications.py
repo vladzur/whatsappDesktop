@@ -29,7 +29,7 @@ def test_init_calls_notify_init(mock_notify):
     notif_module.NOTIFY_AVAILABLE = True
     config = _config_with()
     notif_module.NotificationManager(config)
-    mock_notify.init.assert_called_once_with("WhatsApp Desk")
+    mock_notify.init.assert_called_once_with("com.vladzur.WhatsAppDesk")
 
 
 @patch("whatsapp_desk.notifications.Notify")
