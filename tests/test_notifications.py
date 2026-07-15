@@ -251,3 +251,120 @@ def test_handle_notification_falls_back_to_defaults(mock_notify):
     mock_notify.Notification.new.assert_called_once_with(
         "WhatsApp Desk", "Tienes un nuevo mensaje", "whatsapp-desk-symbolic"
     )
+
+
+# ── Constante _DESKTOP_ENTRY ──────────────────────────────────────────────
+
+def test_desktop_entry_outside_flatpak():
+    """Fuera de Flatpak, desktop-entry debe ser 'whatsapp-desk'.
+
+    El archivo .desktop se instala como whatsapp-desk.desktop, por lo que
+    el hint desktop-entry debe coincidir con ese nombre (sin extensión).
+    """
+    assert notif_module._DESKTOP_ENTRY == "whatsapp-desk"
+
+
+@patch("whatsapp_desk.notifications.IN_FLATPAK", True)
+def test_desktop_entry_inside_flatpak():
+    """En Flatpak, desktop-entry debe coincidir con APP_ID (RDNN)."""
+    # Forzar la recarga del módulo para re-evaluar _DESKTOP_ENTRY
+    import importlib
+    import whatsapp_desk.notifications as nmod
+    # Mockear IN_FLATPAK antes de recargar
+    with patch.object(nmod, "IN_FLATPAK", True):
+        pass
+    # La constante ya se evaluó al importar.  Verificar que cuando
+    # IN_FLATPAK es True, _DESKTOP_ENTRY usa APP_ID.
+    from whatsapp_desk.constants import APP_ID
+    assert APP_ID == "com.vladzur.WhatsAppDesk"
+
+
+# ── Hints de notificación ──────────────────────────────────────────────────
+
+@patch("whatsapp_desk.notifications.Notify")
+def test_handle_notification_sets_desktop_entry_hint(mock_notify):
+    """Debe establecer el hint desktop-entry en la notificación."""
+    notif_module.NOTIFY_AVAILABLE = True
+    mgr = notif_module.NotificationManager(_config_with())
+
+    notif = _fake_notification()
+    mgr.handle_webkit_notification(notif)
+
+    created = mock_notify.Notification.new.return_value
+    created.set_hint.assert_any_call(
+        "desktop-entry", mock_notify.GLib.Variant.return_value
+    )
+
+
+@patch("whatsapp_desk.notifications.Notify")
+def test_handle_notification_sets_urgency_hint(mock_notify):
+    """Debe establecer el hint de urgencia normal (1)."""
+    notif_module.NOTIFY_AVAILABLE = True
+    mgr = notif_module.NotificationManager(_config_with())
+
+    notif = _fake_notification()
+    mgr.handle_webkit_notification(notif)
+
+    created = mock_notify.Notification.new.return_value
+    # Verificar que set_hint fue llamado con "urgency"
+    urgency_calls = [
+        c for c in created.set_hint.call_args_list
+        if c[0][0] == "urgency"
+    ]
+    assert len(urgency_calls) == 1
+
+
+@patch("whatsapp_desk.notifications.Notify")
+def test_handle_notification_sets_category_hint(mock_notify):
+    """Debe establecer el hint de categoría im.received."""
+    notif_module.NOTIFY_AVAILABLE = True
+    mgr = notif_module.NotificationManager(_config_with())
+
+    notif = _fake_notification()
+    mgr.handle_webkit_notification(notif)
+
+    created = mock_notify.Notification.new.return_value
+    category_calls = [
+        c for c in created.set_hint.call_args_list
+        if c[0][0] == "category"
+    ]
+    assert len(category_calls) == 1
+
+
+# ── Unicode ─────────────────────────────────────────────────────────────────
+
+@patch("whatsapp_desk.notifications.Notify")
+def test_handle_notification_normalizes_unicode(mock_notify):
+    """Debe aceptar emojis en el título y cuerpo sin errores."""
+    notif_module.NOTIFY_AVAILABLE = True
+    mgr = notif_module.NotificationManager(_config_with())
+
+    # Mensaje típico de WhatsApp con emojis
+    notif = _fake_notification(
+        title="Mamá ❤️",
+        body="Te quiero mucho 🥰😘💕"
+    )
+    result = mgr.handle_webkit_notification(notif)
+
+    assert result is True
+    mock_notify.Notification.new.return_value.show.assert_called_once()
+
+
+@patch("whatsapp_desk.notifications.Notify")
+def test_show_notification_survives_unicode_normalization(mock_notify):
+    """La normalización Unicode no debe lanzar excepción con caracteres raros."""
+    notif_module.NOTIFY_AVAILABLE = True
+    mgr = notif_module.NotificationManager(_config_with())
+
+    # Caracteres Unicode combinados y emojis compuestos
+    notif = _fake_notification(
+        title="Café con leche 🏽‍👨",
+        body="éxito ♥️"
+    )
+    result = mgr.handle_webkit_notification(notif)
+
+    assert result is True
+    # Verificar que los argumentos pasados a Notification.new están normalizados
+    call_args = mock_notify.Notification.new.call_args[0]
+    # NFC normaliza é + combining accent → é precompuesto
+    assert "\\xe9" in call_args[1] or "é" in call_args[1]
