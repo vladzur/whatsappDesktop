@@ -9,3 +9,4 @@ Keywords=WhatsApp;Chat;Messaging;IM;
 StartupNotify=true
 StartupWMClass=com.vladzur.WhatsAppDesk
 Terminal=false
+X-GNOME-UsesNotifications=true
