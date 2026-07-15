@@ -16,6 +16,7 @@ Flujo:
 """
 
 import time
+import unicodedata
 import gi
 
 gi.require_version("WebKit", "6.0")
@@ -36,6 +37,14 @@ _ICON_NORMAL = (
     "com.vladzur.WhatsAppDesk-symbolic" if IN_FLATPAK
     else "whatsapp-desk-symbolic"
 )
+
+# Identificador desktop-entry para asociar notificaciones con la app.
+# GNOME Shell usa este hint para saber a qué aplicación pertenece la
+# notificación.  Debe coincidir con el nombre del archivo .desktop
+# (sin la extensión).  En Flatpak el archivo usa el RDNN
+# (com.vladzur.WhatsAppDesk), fuera de Flatpak se instala como
+# whatsapp-desk.desktop.
+_DESKTOP_ENTRY = APP_ID if IN_FLATPAK else "whatsapp-desk"
 
 # Tiempo mínimo entre notificaciones (segundos) para evitar spam
 DEBOUNCE_SECONDS = 3
@@ -122,12 +131,28 @@ class NotificationManager:
         if not NOTIFY_AVAILABLE:
             return
         try:
+            # Normalizar Unicode (NFC) para que los emojis y caracteres
+            # especiales se muestren correctamente en la burbuja.
+            title = unicodedata.normalize("NFC", title)
+            body = unicodedata.normalize("NFC", body)
+
             notification = Notify.Notification.new(
                 title, body, _ICON_NORMAL
             )
-            # El hint desktop-entry es obligatorio para que GNOME Shell
-            # muestre la notificación en el feed y la asocie con la app.
-            notification.set_hint("desktop-entry", GLib.Variant("s", APP_ID))
+            # El hint desktop-entry asocia la notificación con la app en
+            # GNOME Shell.  Debe coincidir con el nombre del .desktop.
+            notification.set_hint(
+                "desktop-entry", GLib.Variant("s", _DESKTOP_ENTRY)
+            )
+            # Urgencia normal para que aparezca en el popup de notificaciones.
+            # El valor 1 corresponde a NOTIFY_URGENCY_NORMAL.
+            notification.set_hint(
+                "urgency", GLib.Variant("y", 1)
+            )
+            # Categoría IM recibida para agrupar con otras notificaciones de chat
+            notification.set_hint(
+                "category", GLib.Variant("s", "im.received")
+            )
             notification.set_timeout(5000)  # 5 segundos
             notification.show()
         except Exception:
