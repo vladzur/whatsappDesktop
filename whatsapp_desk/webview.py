@@ -478,44 +478,140 @@ class WhatsAppWebView(WebKit.WebView):
         user_content.add_script(user_script)
 
     def _inject_audio_mute(self):
-        """Suprime los sonidos de notificación de WhatsApp Web.
+        """Suprime los sonidos de notificación de WhatsApp Web y limpia MPRIS.
 
         WhatsApp reproduce sonidos cortos al recibir mensajes.  GNOME detecta
-        esa reproducción vía PipeWire y muestra un «reproductor multimedia»
-        fantasma en el área de notificaciones en lugar de la burbuja real.
+        esa reproducción vía PipeWire/MPRIS y muestra un «reproductor
+        multimedia» fantasma en el área de notificaciones.
 
-        Esta inyección silencia los elementos <audio> que coinciden con
-        patrones de URL típicos de sonidos de notificación.  Las notas de
-        voz y las llamadas (WebRTC) NO se ven afectadas porque usan
-        mecanismos diferentes.
+        Estrategia:
+        1. Para sonidos de notificación (identificados por patrón de URL):
+           bloqueamos completamente play() para que WebKitGTK nunca cree
+           una entrada MPRIS.  No basta con silenciar (volume=0) porque el
+           elemento sigue en estado «playing» y MPRIS lo registra igual.
+
+        2. Para todos los elementos <audio> y <video> (notas de voz,
+           llamadas): agregamos un listener «ended» que limpia el src del
+           elemento para forzar a WebKitGTK a liberar la entrada MPRIS
+           inmediatamente al terminar la reproducción, evitando que quede
+           un reproductor fantasma en el área de notificaciones de GNOME.
         """
         audio_mute_script = """
         (function() {
-            // Interceptar HTMLAudioElement.play() para silenciar sonidos
-            // de notificación por patrón de URL.
-            var _origPlay = HTMLAudioElement.prototype.play;
+            // ── Bloqueo de sonidos de notificación ────────────────────────
+            // Interceptamos HTMLAudioElement.play() para BLOQUEAR sonidos
+            // de notificación (no solo silenciarlos).  Esto evita que
+            // WebKitGTK cree una entrada MPRIS para estos sonidos.
+            var _origAudioPlay = HTMLAudioElement.prototype.play;
             HTMLAudioElement.prototype.play = function() {
                 var src = (this.src || '').toLowerCase();
                 var isNotif = (
                     /notification|notif|alert|new_msg|msg_received/i.test(src)
                 );
                 if (isNotif) {
-                    try { this.volume = 0; } catch (_e) {}
+                    // Bloquear completamente: no llamar al play original.
+                    // Retornamos una promesa resuelta para que el caller
+                    // no reciba errores.
+                    return Promise.resolve();
                 }
-                return _origPlay.call(this).catch(function() {});
+                return _origAudioPlay.call(this).catch(function() {});
             };
 
-            // Interceptar el constructor Audio() para silenciar por URL
+            // Interceptar el constructor Audio() para bloquear por URL
             if (typeof Audio !== 'undefined') {
                 var _OrigAudio = Audio;
                 window.Audio = function(src) {
                     var instance = new _OrigAudio(src);
                     if (src && /notification|notif/i.test(src)) {
-                        try { instance.volume = 0; } catch (_e) {}
+                        // Parchear play() en esta instancia específica
+                        // para que nunca inicie reproducción
+                        instance.play = function() {
+                            return Promise.resolve();
+                        };
                     }
                     return instance;
                 };
                 window.Audio.prototype = _OrigAudio.prototype;
+            }
+
+            // ── Limpieza MPRIS para notas de voz y videos ─────────────────
+            // Al terminar cualquier reproducción de <audio> o <video>,
+            // limpiamos el src para que WebKitGTK libere inmediatamente
+            // la entrada MPRIS.  Esto evita que el reproductor multimedia
+            // fantasma persista en el área de notificaciones de GNOME.
+            function _addMediaCleanup(el) {
+                if (!el || el._whatsappDeskCleanup) return;
+                el._whatsappDeskCleanup = true;
+                el.addEventListener('ended', function() {
+                    // Pequeño retardo para asegurar que el evento 'ended'
+                    // se haya procesado completamente antes de limpiar
+                    setTimeout(function() {
+                        try {
+                            // Pausar explícitamente antes de limpiar src
+                            // para notificar a WebKitGTK que la reproducción
+                            // ha terminado realmente
+                            el.pause();
+                            // Limpiar src fuerza a WebKitGTK a liberar
+                            // el pipeline de GStreamer y la entrada MPRIS
+                            el.removeAttribute('src');
+                            el.load();
+                        } catch(_e) {}
+                    }, 100);
+                });
+                // También limpiar en caso de error de carga
+                el.addEventListener('error', function() {
+                    setTimeout(function() {
+                        try {
+                            el.pause();
+                            el.removeAttribute('src');
+                            el.load();
+                        } catch(_e) {}
+                    }, 100);
+                });
+            }
+
+            // Escanear elementos media ya existentes e iniciar observación
+            function _scanAndObserve() {
+                // Escanear elementos ya presentes
+                var existing = document.querySelectorAll('audio, video');
+                for (var i = 0; i < existing.length; i++) {
+                    _addMediaCleanup(existing[i]);
+                }
+
+                // Observar elementos nuevos en el DOM
+                if (window.MutationObserver && document.documentElement) {
+                    var _observer = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(m) {
+                            m.addedNodes.forEach(function(node) {
+                                if (node.nodeType === 1) {
+                                    if (node.tagName === 'AUDIO' ||
+                                        node.tagName === 'VIDEO') {
+                                        _addMediaCleanup(node);
+                                    }
+                                    if (node.querySelectorAll) {
+                                        var media = node.querySelectorAll(
+                                            'audio, video'
+                                        );
+                                        for (var i = 0; i < media.length; i++) {
+                                            _addMediaCleanup(media[i]);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    _observer.observe(document.documentElement, {
+                        childList: true, subtree: true
+                    });
+                }
+            }
+
+            // Ejecutar cuando el DOM esté listo (en DOCUMENT_START
+            // documentElement puede no existir aún)
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', _scanAndObserve);
+            } else {
+                _scanAndObserve();
             }
         })();
         """

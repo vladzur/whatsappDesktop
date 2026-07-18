@@ -38,6 +38,23 @@
     <version>50</version>
   </requires>
   <releases>
+    <release version="1.2.6" date="2026-07-18">
+      <description>
+        <p>Fix: notification sounds no longer leave a phantom media player
+           in the GNOME notification area, and media elements are properly
+           cleaned up after playback ends.</p>
+        <ul>
+          <li>Notification sounds are now completely blocked (not just muted),
+              preventing WebKitGTK from creating an MPRIS entry</li>
+          <li>Added ended/error event listeners on all audio and video elements
+              to release the GStreamer pipeline and MPRIS entry immediately
+              after playback finishes</li>
+          <li>Added MutationObserver to detect dynamically created media elements</li>
+          <li>Added ffmpeg-full extension to Flatpak manifest for H.264/AAC
+              video codec support</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.5" date="2026-07-15">
       <description>
         <p>Fix: implemented JS→Python bridge via window.webkit.messageHandlers
