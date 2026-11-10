@@ -56,7 +56,7 @@ class DownloadManager:
         dialog.set_title("Guardar archivo")
         dialog.set_initial_name(suggested_filename or "descarga")
         dialog.set_initial_folder(
-            Gio_file_for_path(DEFAULT_DOWNLOAD_DIR)
+            gio_file_for_path(DEFAULT_DOWNLOAD_DIR)
         )
 
         # Abrir el diálogo de forma asíncrona para no bloquear el hilo principal
@@ -124,7 +124,7 @@ class DownloadManager:
         alert.show(self._window)
 
 
-def Gio_file_for_path(path: str):
+def gio_file_for_path(path: str):
     """Helper para crear un Gio.File desde una ruta."""
     from gi.repository import Gio
     return Gio.File.new_for_path(path)

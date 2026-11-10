@@ -259,3 +259,43 @@ def test_audio_mute_injects_html_audio_element_patch(mock_webkit):
     script_arg = user_content.add_script.call_args_list[0][0][0]
     assert "HTMLAudioElement.prototype.play" in script_arg
     assert "notification" in script_arg.lower()
+
+
+@patch("whatsapp_desk.webview.GObject")
+@patch("whatsapp_desk.webview.WebKit")
+def test_hardware_acceleration_enabled_by_default(mock_webkit, mock_gobject, monkeypatch):
+    """La GPU debe quedarse activada: desactivarla hunde el rendimiento."""
+    monkeypatch.delenv("WHATSAPP_DESK_DISABLE_HW_ACCEL", raising=False)
+    mock_settings = MagicMock()
+    mock_gobject.new.return_value = mock_settings
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.set_settings = MagicMock()
+    wv._setup_settings()
+
+    policy_calls = [
+        c
+        for c in mock_settings.set_property.call_args_list
+        if c[0][0] == "hardware-acceleration-policy"
+    ]
+    assert policy_calls == []
+
+
+@patch("whatsapp_desk.webview.GObject")
+@patch("whatsapp_desk.webview.WebKit")
+def test_hardware_acceleration_can_be_disabled_by_env(
+    mock_webkit, mock_gobject, monkeypatch
+):
+    """La variable de entorno permite volver al render por software."""
+    monkeypatch.setenv("WHATSAPP_DESK_DISABLE_HW_ACCEL", "1")
+    mock_settings = MagicMock()
+    mock_gobject.new.return_value = mock_settings
+
+    wv = WhatsAppWebView.__new__(WhatsAppWebView)
+    wv.set_settings = MagicMock()
+    wv._setup_settings()
+
+    mock_settings.set_property.assert_called_once_with(
+        "hardware-acceleration-policy",
+        mock_webkit.HardwareAccelerationPolicy.NEVER,
+    )

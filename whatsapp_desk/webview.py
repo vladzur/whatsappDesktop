@@ -1,5 +1,7 @@
 """WebView de WhatsApp con configuración personalizada."""
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -123,15 +125,23 @@ class WhatsAppWebView(WebKit.WebView):
             enable_media_stream=True,
             # Habilita la Encrypted Media Extension (EME) para contenido protegido.
             enable_encrypted_media=True,
-            # ── Rendering ─────────────────────────────────────────────────
-            # Deshabilita la aceleración GPU en el compositor de capas de WebKit.
-            # Algunos drivers Mesa/Wayland dentro del sandbox de Flatpak producen
-            # artefactos visuales (bordes pixelados en emojis de reacciones,
-            # glitches en transparencias). Esto NO afecta a WebGL (el contenido
-            # multimedia de WhatsApp sigue usando GPU); solo cambia cómo WebKit
-            # compone sus propias capas internas.
-            hardware_acceleration_policy=WebKit.HardwareAccelerationPolicy.NEVER,
         )
+        # ── Rendering ─────────────────────────────────────────────────────
+        # La aceleración GPU se deja activada (valor por defecto de WebKit).
+        # Desactivarla obliga a componer toda la interfaz en la CPU y hunde
+        # el rendimiento de WhatsApp Web (listas de chats, scroll, animaciones).
+        # Solo se desactiva si el usuario lo pide explícitamente, para los
+        # drivers Mesa/Wayland que producen artefactos visuales (bordes
+        # pixelados en emojis de reacciones, glitches en transparencias).
+        if os.environ.get("WHATSAPP_DESK_DISABLE_HW_ACCEL", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            settings.set_property(
+                "hardware-acceleration-policy",
+                WebKit.HardwareAccelerationPolicy.NEVER,
+            )
         self.set_settings(settings)
 
     def _inject_browser_spoof(self):

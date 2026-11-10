@@ -171,6 +171,41 @@ class TestWhatsAppWebView(unittest.TestCase):
 
     @patch("whatsapp_desk.webview.WebKit")
     @patch("whatsapp_desk.webview.GObject")
+    def test_hardware_acceleration_enabled_by_default(self, mock_gobject, mock_webkit):
+        mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WHATSAPP_DESK_DISABLE_HW_ACCEL", None)
+            wv = self._make_wv()
+            wv._setup_settings()
+
+        policy_calls = [
+            c
+            for c in mock_settings.set_property.call_args_list
+            if c[0][0] == "hardware-acceleration-policy"
+        ]
+        self.assertEqual(policy_calls, [])
+
+    @patch("whatsapp_desk.webview.WebKit")
+    @patch("whatsapp_desk.webview.GObject")
+    def test_hardware_acceleration_can_be_disabled_by_env(
+        self, mock_gobject, mock_webkit
+    ):
+        mock_settings = MagicMock()
+        mock_gobject.new.return_value = mock_settings
+
+        with patch.dict(os.environ, {"WHATSAPP_DESK_DISABLE_HW_ACCEL": "1"}):
+            wv = self._make_wv()
+            wv._setup_settings()
+
+        mock_settings.set_property.assert_called_once_with(
+            "hardware-acceleration-policy",
+            mock_webkit.HardwareAccelerationPolicy.NEVER,
+        )
+
+    @patch("whatsapp_desk.webview.WebKit")
+    @patch("whatsapp_desk.webview.GObject")
     def test_load_whatsapp_loads_correct_url(self, mock_gobject, mock_webkit):
         mock_settings = MagicMock()
         mock_gobject.new.return_value = mock_settings
