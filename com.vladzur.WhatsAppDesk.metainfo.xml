@@ -38,6 +38,23 @@
     <version>50</version>
   </requires>
   <releases>
+    <release version="1.2.7" date="2026-11-09">
+      <description>
+        <p>Fix: WebKit hardware acceleration is enabled again to restore
+           rendering performance.</p>
+        <ul>
+          <li>Software compositing (hardware-acceleration-policy=NEVER) was
+              making scrolling and animations noticeably slower and roughly
+              doubling CPU usage: ~39 FPS instead of ~60 FPS in the Flatpak
+              runtime for the same animated content</li>
+          <li>Added WHATSAPP_DESK_DISABLE_HW_ACCEL to opt back into software
+              rendering on systems where Mesa/Wayland drivers produce
+              compositing artifacts</li>
+          <li>Fixed a NameError in the download dialog caused by a mismatched
+              Gio_file_for_path helper name</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.6" date="2026-07-18">
       <description>
         <p>Fix: notification sounds no longer leave a phantom media player
