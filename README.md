@@ -159,6 +159,26 @@ El manifiesto solicita los siguientes permisos:
 - La app detecta automáticamente si se ejecuta dentro del sandbox y adapta las respuestas D-Bus (`IconThemePath` vacío) para que GNOME Shell resuelva los iconos vía `XDG_DATA_DIRS`.
 - La extensión **AppIndicator Support** sigue siendo necesaria en el equipo anfitrión.
 
+### Aceleración por GPU y rendimiento
+
+WebKit compone la interfaz con la GPU por defecto. Forzarlo a render por software
+(`hardware-acceleration-policy=NEVER`) degrada la fluidez de forma notable:
+medido sobre el runtime de Flatpak, una página con capas animadas pasa de
+**~60 FPS a ~39 FPS** y el consumo de CPU se duplica. Por eso la app mantiene la
+aceleración activada.
+
+Si en un equipo concreto aparecen artefactos visuales (bordes pixelados en emojis
+de reacciones, glitches en transparencias) por un driver Mesa/Wayland, se puede
+volver al render por software solo en esa instalación:
+
+```bash
+# Ejecución directa desde el código o paquete del sistema
+WHATSAPP_DESK_DISABLE_HW_ACCEL=1 whatsapp-desk
+
+# Flatpak
+flatpak override --user --env=WHATSAPP_DESK_DISABLE_HW_ACCEL=1 com.vladzur.WhatsAppDesk
+```
+
 ---
 
 ## Estructura del proyecto
